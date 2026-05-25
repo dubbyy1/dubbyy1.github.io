@@ -14,8 +14,8 @@
         <link rel="icon" href="images/favicon.ico" sizes="any" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="author" content="dubbyy" />
-        <link rel="stylesheet" href="css/projects.css" />
-        <script src="../js/jquery-latest.min.js"></script>
+        <link rel="stylesheet" href="/projects/css/projects.css" />
+        <script src="/js/jquery-latest.min.js"></script>
         <style>
             @import url("https://fonts.googleapis.com/css2?family=Sora:wght@100..800&display=swap");
             @import url("https://fonts.googleapis.com/css2?family=Fredoka:wght@300..700&display=swap");
@@ -26,13 +26,13 @@
     <body id="body">
         <div id="header" class="header"></div>
         <script>
-            fetch("components/projects-header.html")
+            fetch("/projects/components/header.html")
                 .then((res) => res.text())
                 .then((data) => {
                     document.getElementById("header").innerHTML = data;
                     // Load projects.js after header is loaded
                     const script = document.createElement("script");
-                    script.src = "../js/index.js";
+                    script.src = "/js/index.js";
                     document.body.appendChild(script);
 
                     // Load projects.js after header is loaded
@@ -42,7 +42,7 @@
         <div id="project-container" class="project-container">
             <div id="projects-list" class="projects-list"></div>
             <script>
-                fetch("components/projects-list.html")
+                fetch("/projects/components/list.html")
                     .then((res) => res.text())
                     .then((data) => {
                         document.getElementById("projects-list").innerHTML =
