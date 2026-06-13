@@ -241,6 +241,50 @@ body {
     border-radius: 1.5px;
 }
 
+.try-it-box {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+
+    background-color: #efe0d2;
+    border: 3px solid #e5d4c3;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin: 1.2rem 0rem 1.5rem 0rem;
+}
+
+.try-it-box .try-it-label {
+    font-family: "Fredoka", sans-serif;
+    font-size: 1.2rem;
+    font-weight: 500;
+    color: #ff8000;
+}
+
+.projects-content .try-it-box .try-it-box-text {
+    margin: 0;
+    flex: 1;
+    text-align: left;
+}
+
+.try-it-box a {
+    flex-shrink: 0;
+    font-family: "Fredoka", sans-serif;
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: #fff2e5;
+    background-color: #ff8000;
+    text-decoration: none;
+    padding: 0.6em 0.8em;
+    border-radius: 0.4rem;
+    transition: background-color 0.1s ease;
+}
+
+.try-it-box a:hover {
+    background-color: #cc6500;
+}
+
 .projects-content h3 {
     font-family: "Noto Serif", serif;
     font-optical-sizing: auto;
