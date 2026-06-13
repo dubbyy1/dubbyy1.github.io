@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+    <link type="text/css" id="dark-mode" rel="stylesheet" href="" /><style
+        type="text/css"
+        id="dark-mode-custom-style"
+    ></style>
+    <head>
+        <link type="text/css" id="dark-mode" rel="stylesheet" href="" />
+        <style type="text/css" id="dark-mode-custom-style"></style>
+        <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+        <meta
+            name="description"
+            content="Live Separator, a Windows desktop app for real-time vocal removal"
+        />
+        <meta charset="utf-8" />
+        <title>Live Separator</title>
+        <link rel="icon" href="/images/favicon.ico" sizes="any" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="author" content="dubbyy" />
+        <link rel="stylesheet" href="/projects/css/projects.css" />
+        <script src="/js/jquery-latest.min.js"></script>
+        <script src="/projects/projects.js"></script>
+        <style>
+            @import url("https://fonts.googleapis.com/css2?family=Fredoka:wght@300..700&display=swap");
+            @import url("https://fonts.googleapis.com/css2?family=Noto+Serif:ital,wght@0,100..900;1,100..900&display=swap");
+        </style>
+    </head>
+
+    <body id="body">
+        <div id="header" class="header"></div>
+        <script>
+            fetch("/projects/components/header.html")
+                .then((res) => res.text())
+                .then((data) => {
+                    document.getElementById("header").innerHTML = data;
+
+                    const script = document.createElement("script");
+                    script.src = "/js/index.js";
+                    document.body.appendChild(script);
+                });
+        </script>
+
+        <div id="project-container" class="project-container">
+            <div id="projects-list" class="projects-list"></div>
+            <script>
+                fetch("/projects/components/list.html")
+                    .then((res) => res.text())
+                    .then((data) => {
+                        document.getElementById("projects-list").innerHTML =
+                            data;
+                    });
+            </script>
+            <div class="projects-content">
+                <div class="project-container-separator"></div>
+                <div class="inner">
+                    <h1>Live Separator</h1>
+                    <h2>
+                        A Spotify companion app to remove vocals and filter
+                        playlists in real time.
+                    </h2>
+                    <div class="content-separator">
+                        <span class="date">2026-06-13</span>
+                        <div class="line"></div>
+                    </div>
+
+                    <h3>
+                        Intro
+                        <div style="width: 2.2em" class="separator"></div>
+                    </h3>
+                    <p>
+                        In 2025, I attempted to create an app that would let me
+                        listen to an instrumental version of my playlist in real
+                        time, as seamlessly as possible. After a couple days, I
+                        was able to make a working prototype in Python, but I
+                        never took it further than that.
+                    </p>
+                    <p>
+                        When I took part in Patch x OpenAI Young Builders Week
+                        this June, I decided to try again with a clearer plan
+                        and a better understanding of the problem.
+                    </p>
+
+                    <h3>
+                        Routing
+                        <div style="width: 3.8em" class="separator"></div>
+                    </h3>
+                    <p>
+                        I needed a way to get the music into the app, and away
+                        from the speakers. To do that, I used a software called
+                        VB-CABLE to create a virtual cable connecting Spotify
+                        and the app.
+                    </p>
+                    <p>
+                        The app records the audio coming from the cable in
+                        seven-second chunks. Each chunk is added to a queue for
+                        processing, and the finished chunks are added back into
+                        the audio stream being sent to the speakers. This lets
+                        the app record, process, and play different chunks at
+                        the same time, keeping playback uninterrupted.
+                    </p>
+
+                    <h3>
+                        Separation
+                        <div style="width: 5.5em" class="separator"></div>
+                    </h3>
+                    <p>
+                        The traditional approach to vocal removal is called
+                        center channel cancellation. It works because vocals are
+                        often placed in the center of a song, making them
+                        similar in the left and right channels. In theory, that
+                        means the channels can be cancelled against each other
+                        to remove the vocals. I tried this first because it was
+                        fast and simple enough to run in real time, but it was
+                        too inconsistent. It only worked on certain songs, and
+                        even then the result was usually low quality.
+                    </p>
+                    <p>
+                        The better option was to use an AI stem splitting model.
+                        This was slower and more demanding, but the quality was
+                        much more consistent. After testing a few different
+                        models, I found that Meta’s Demucs model gave the best
+                        balance between quality and speed, getting close enough
+                        to real time for the app to work.
+                    </p>
+
+                    <h3>
+                        Filters
+                        <div style="width: 3.2em" class="separator"></div>
+                    </h3>
+                    <p>
+                        Once the separation pipeline was working, I wanted to
+                        add one more feature before presenting it at the end of
+                        the week. I realised that I spend a lot of time
+                        searching through my playlist to find songs that match
+                        my mood. To avoid having to manage several different
+                        playlists, I created a filtering page.
+                    </p>
+                    <p>
+                        This feature lets the user define rules, to filter out
+                        any songs that don't match those rules. It connects to
+                        your Spotify account via Spotify's Web API, and pulls
+                        the metadata of the track currently playing. Any song
+                        that does not match the selected criteria is skipped
+                        instantly, making the playlist feel filtered in real
+                        time.
+                    </p>
+                    <img
+                        src="separation.png"
+                        alt="Separation page showing Spotify as the audio source, an output device picker, and live input and output meters."
+                    />
+                    <img
+                        src="filters.png"
+                        alt="Filters page for Spotify playback with artist, release year, and clean or explicit filter controls."
+                    />
+                </div>
+            </div>
+        </div>
+    </body>
+</html>
