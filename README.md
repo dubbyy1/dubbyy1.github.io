@@ -1,1 +1,1 @@
-Welcome! This website is a home for all my projects, and anything else I think is worth sharing. I hope you enjoy!
+Welcome! This website is a home for all of my and experiments. I hope you enjoy!
