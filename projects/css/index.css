@@ -153,6 +153,58 @@ body {
 .projects-list a:hover {
     color: #cc6500;
 }
+
+.project-link-row {
+    display: flex;
+    align-items: center;
+    gap: 0.35em;
+}
+
+.project-link-main {
+    min-width: 0;
+}
+
+.pin-indicator {
+    display: inline-flex;
+    align-items: center;
+    width: 0.8em;
+    height: 0.8em;
+    flex-shrink: 0;
+    color: #cc6500;
+}
+
+.pin-indicator svg {
+    width: 100%;
+    height: 100%;
+}
+
+.project-github-link {
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    color: #994d00;
+}
+
+.project-demo-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 1.15em;
+    height: 1.15em;
+    color: #cc6500;
+}
+
+.project-demo-link svg {
+    width: 0.95em;
+    height: 0.95em;
+}
+
+.project-github-link svg {
+    width: 0.85em;
+    height: 0.85em;
+}
+
 .projects-list .coming-soon {
     padding-top: 0.7em;
     align-self: center;
