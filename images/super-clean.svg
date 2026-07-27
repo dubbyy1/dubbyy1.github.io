@@ -1,5 +1,0 @@
-<svg viewBox="-32 -16 64 32" version="1.1" fill="#fff2e5" width="2268px" height="2268px" class="logo-svg">
-  <ellipse cx="22.4" cy="6.4" style="display:inline;fill-opacity:1" id="right eye" transform="scale(1,-1)" rx="9.6" ry="9.6"></ellipse>
-  <ellipse cx="-22.4" cy="0" style="display:inline;fill-opacity:1" id="left eye" rx="9.6" ry="9.6"></ellipse>
-  <path style="opacity:1;fill-opacity:1" d="m -5.3,1.58 -3.67,5.24 13.1,9.18 9.18,-13.11 -5.24,-3.67 -5.51,7.87 z" id="mouth"></path>
-</svg>
