@@ -1,0 +1,101 @@
+---
+// Shell for every page: head tags, fonts, and the sideways swipe between screens.
+import "@fontsource-variable/nunito/wght.css";
+import "@fontsource-variable/nunito/wght-italic.css";
+import "../styles/global.css";
+import { ClientRouter } from "astro:transitions";
+
+interface Props {
+    title?: string;
+    description?: string;
+    // Leave this page with a hard cut instead of a slide (for pages with no fixed address, like the 404).
+    cut?: boolean;
+}
+
+const {
+    title = "dubbyy",
+    description = "Chidubem (Dubby) Uzoukwu's home for projects, experiments and things I've been up to.",
+    cut = false,
+} = Astro.props;
+const fullTitle = title === "dubbyy" ? title : `${title} · dubbyy`;
+---
+
+<!doctype html>
+<html lang="en" data-cut={cut ? "" : undefined}>
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>{fullTitle}</title>
+        <meta name="description" content={description} />
+        <meta name="author" content="Chidubem Uzoukwu" />
+        <link rel="icon" href="/favicon.ico" sizes="any" />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content={fullTitle} />
+        <meta property="og:description" content={description} />
+        <ClientRouter />
+    </head>
+
+    <body>
+        <slot />
+
+        <script>
+            import { navigate } from "astro:transitions/client";
+            import { screenIndex, neighbours, isSection, isCut } from "../data/screens";
+            import { enableSwipe } from "../scripts/swipe";
+
+            // Pick the swipe direction from where the two pages sit in data/screens.ts.
+            // Pages that aren't screens (e.g. a single project) fall back to the browser's history direction.
+            // After a finger swipe the old page has already left, so only the new one slides in ("in-…").
+            let slide = "";
+            let swiped = false;
+            document.addEventListener("astro:before-preparation", (e) => {
+                const from = screenIndex(e.from.pathname);
+                const to = screenIndex(e.to.pathname);
+                slide = e.direction === "back" ? "right" : "left";
+                if (from !== -1 && to !== -1) slide = to > from ? "left" : "right";
+                // Into a section (e.g. projects) the page slides up; back out of it, down.
+                const fromSection = isSection(e.from.pathname);
+                const toSection = isSection(e.to.pathname);
+                if (toSection && !fromSection) slide = "up";
+                if (fromSection && !toSection) slide = "down";
+                if (swiped) slide = `in-${slide}`;
+                // A project block already filled the screen with its colour (scripts/iris.ts): just fade.
+                if (e.info === "iris") slide = "iris";
+                // Some pages (e.g. /y) just cut in and out.
+                if (isCut(e.from.pathname) || isCut(e.to.pathname)) slide = "cut";
+                // ...as do pages that ask for it, like the 404 (<Base cut>).
+                if (document.documentElement.hasAttribute("data-cut")) slide = "cut";
+                swiped = false;
+                document.documentElement.dataset.slide = slide;
+            });
+            // The swap copies <html>'s attributes from the new page, so put the direction back.
+            document.addEventListener("astro:after-swap", () => {
+                document.documentElement.dataset.slide = slide;
+            });
+
+            // Arrow keys and sideways touch swipes move between neighbouring screens.
+            const go = (dir: "prev" | "next", bySwipe = false) => {
+                const target = neighbours(location.pathname)[dir];
+                if (!target) return;
+                swiped = bySwipe;
+                navigate(target.path);
+            };
+
+            document.addEventListener("keydown", (e) => {
+                // e.repeat: holding a key down moves one screen, not one per auto-repeat.
+                if (e.repeat || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+                const el = e.target instanceof Element ? e.target : null;
+                if (el?.closest("input, textarea, select, [contenteditable]")) return;
+                if (e.key === "ArrowLeft") go("prev");
+                if (e.key === "ArrowRight") go("next");
+            });
+
+            enableSwipe({
+                // Only the main screens can be swiped; sections and other pages stay put.
+                enabled: () => screenIndex(location.pathname) !== -1,
+                hasNeighbour: (dir) => !!neighbours(location.pathname)[dir],
+                go: (dir) => go(dir, true),
+            });
+        </script>
+    </body>
+</html>

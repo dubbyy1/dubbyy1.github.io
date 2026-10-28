@@ -1,0 +1,33 @@
+{
+  "name": "dubbyy.com",
+  "type": "module",
+  "version": "0.0.1",
+  "engines": {
+    "node": ">=22.23.4"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "generate-types": "wrangler types",
+    "preview:phone": "astro build && wrangler dev --ip 0.0.0.0 --port 4400"
+  },
+  "dependencies": {
+    "@astrojs/cloudflare": "^14.4.2",
+    "@astrojs/svelte": "^9.1.1",
+    "@fontsource-variable/fredoka": "^5.3.0",
+    "@fontsource-variable/nunito": "^5.3.0",
+    "@fontsource/poppins": "^5.3.0",
+    "@fontsource/tiro-bangla": "^5.3.0",
+    "astro": "^7.4.2",
+    "matter-js": "^0.20.0",
+    "svelte": "^5.57.2",
+    "typescript": "^6.0.3",
+    "wrangler": "^4.153.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.12",
+    "@types/matter-js": "^0.20.2"
+  }
+}

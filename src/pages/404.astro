@@ -1,0 +1,82 @@
+---
+// Shown for any address that doesn't exist. Follows the "404" frame in Figma,
+// lined up with the home page: the same box as the home logo, so "404" sits at the logo's height
+// and "page not found" where the tagline is.
+import "@fontsource-variable/fredoka/wght.css";
+import Base from "../layouts/Base.astro";
+---
+
+<Base title="page not found" cut>
+    <main>
+        <div class="message">
+            <h1>404</h1>
+            <p class="not-found">page not found</p>
+            <p class="go-home">go <a href="/">home</a>?</p>
+        </div>
+    </main>
+</Base>
+
+<style>
+    /* Same layout as the home page's .hero (pages/index.astro): units are the logo's (599 wide). */
+    main {
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: 24px clamp(56px, 12vw, 160px);
+    }
+
+    .message {
+        container-type: inline-size;
+        position: relative;
+        width: min(599px, 100%);
+        aspect-ratio: 599 / 247;
+        translate: 0 3.6%;
+    }
+
+    .message > * {
+        --u: calc(100cqw / 599);
+        position: absolute;
+        margin: 0;
+        /* Lined up with the left of the "4", as in the design. */
+        left: calc(144 * var(--u));
+    }
+
+    h1 {
+        top: calc(5 * var(--u));
+        width: calc(312 * var(--u));
+        font-family: "Fredoka Variable", var(--font-body);
+        font-weight: 600;
+        font-size: calc(174 * var(--u));
+        line-height: 0.74;
+        text-align: center;
+        color: var(--orange);
+    }
+
+    p {
+        font-style: italic;
+        font-weight: 500;
+        font-size: calc(24 * var(--u));
+        line-height: 1.2;
+        white-space: nowrap;
+        color: #613305;
+    }
+
+    /* Where the tagline sits on the home page. */
+    .not-found {
+        top: calc(147 * var(--u));
+    }
+
+    .go-home {
+        top: calc(189 * var(--u));
+    }
+
+    a {
+        font-weight: 700;
+        color: var(--orange);
+        text-underline-offset: 2px;
+    }
+
+    a:hover {
+        color: var(--orange-dark);
+    }
+</style>

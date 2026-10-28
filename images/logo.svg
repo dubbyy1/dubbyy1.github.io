@@ -1,5 +1,0 @@
-<svg viewBox="-32 -16 64 32" width="512" height="256" fill="#ff8000">
-    <ellipse id="right-eye" cx="22.4" cy="-6.4" rx="9.6" ry="9.6"/>
-    <ellipse id="left-eye" cx="-22.4" cy="0" rx="9.6" ry="9.6"/>
-    <path id="mouth" d="m -5.3,1.58 -3.67,5.24 13.1,9.18 9.18,-13.11 -5.24,-3.67 -5.51,7.87 z"/>
-</svg>

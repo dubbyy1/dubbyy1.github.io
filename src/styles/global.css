@@ -1,0 +1,155 @@
+/* Colours and fonts shared by every page. */
+:root {
+    --bg: #fff2e5;
+    --ink: #1a0d00;
+    --orange: #ff8000;
+    --orange-dark: #cc6500;
+    --orange-soft: #ffb366;
+
+    --font-body: "Nunito Variable", system-ui, sans-serif;
+
+    /* The < > arrows at the sides of the screens (components/ScreenArrows.astro).
+       Shared so things drawn next to them can line up. */
+    --arrow-size: clamp(44px, 7.2vw, 92px);
+    --arrow-inset: clamp(4px, 3.5vw, 45px);
+    --arrow-top: 46.5%;
+}
+
+/* Phones can swipe, so the arrows are smaller and tucked against the edges (the tap area stays 44px). */
+@media (max-width: 600px) {
+    :root {
+        --arrow-size: 44px;
+        --arrow-inset: 0px;
+    }
+}
+
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    margin: 0;
+    min-height: 100%;
+}
+
+html {
+    /* Shows behind the page while it's dragged sideways (scripts/swipe.ts). */
+    background: var(--bg);
+    /* The page handles sideways drags itself; the browser keeps vertical scrolling. */
+    touch-action: pan-y;
+    overscroll-behavior-x: none;
+}
+
+body {
+    min-height: 100dvh;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    overflow-x: hidden;
+}
+
+img,
+svg {
+    display: block;
+}
+
+a {
+    color: inherit;
+}
+
+/* Hidden on screen, still read out by screen readers. */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
+:focus-visible {
+    outline: 3px solid var(--orange);
+    outline-offset: 4px;
+    border-radius: 6px;
+}
+
+/* Swipe between screens, like flicking between home screens on a phone: both pages move together,
+   fast at first and settling gently (strong ease-out), sharing one duration and curve.
+   Direction comes from html[data-slide], set in Base.astro from the order in data/screens.ts. */
+:root {
+    --slide-duration: 430ms;
+    /* Into and out of sections (projects). Slower: the whole page travels a full screen height. */
+    --slide-duration-vertical: 650ms;
+    --slide-ease: cubic-bezier(0.23, 1, 0.32, 1); /* ease-out-quint */
+}
+
+@keyframes slide-out-left { to { transform: translateX(-100%); } }
+@keyframes slide-in-left { from { transform: translateX(100%); } }
+@keyframes slide-out-right { to { transform: translateX(100%); } }
+@keyframes slide-in-right { from { transform: translateX(-100%); } }
+@keyframes iris-fade-in { from { opacity: 0; } }
+@keyframes slide-out-up { to { transform: translateY(-100%); } }
+@keyframes slide-in-up { from { transform: translateY(100%); } }
+@keyframes slide-out-down { to { transform: translateY(100%); } }
+@keyframes slide-in-down { from { transform: translateY(-100%); } }
+
+/* Only slide when the visitor hasn't asked for reduced motion; otherwise the page just swaps. */
+@media (prefers-reduced-motion: no-preference) {
+    html[data-slide="left"]::view-transition-old(root) {
+        animation: var(--slide-duration) var(--slide-ease) both slide-out-left;
+    }
+    html[data-slide="left"]::view-transition-new(root) {
+        animation: var(--slide-duration) var(--slide-ease) both slide-in-left;
+    }
+    html[data-slide="right"]::view-transition-old(root) {
+        animation: var(--slide-duration) var(--slide-ease) both slide-out-right;
+    }
+    html[data-slide="right"]::view-transition-new(root) {
+        animation: var(--slide-duration) var(--slide-ease) both slide-in-right;
+    }
+
+    /* Into a section (projects) the page moves up; back out, down. */
+    html[data-slide="up"]::view-transition-old(root) {
+        animation: var(--slide-duration-vertical) var(--slide-ease) both slide-out-up;
+    }
+    html[data-slide="up"]::view-transition-new(root) {
+        animation: var(--slide-duration-vertical) var(--slide-ease) both slide-in-up;
+    }
+    html[data-slide="down"]::view-transition-old(root) {
+        animation: var(--slide-duration-vertical) var(--slide-ease) both slide-out-down;
+    }
+    html[data-slide="down"]::view-transition-new(root) {
+        animation: var(--slide-duration-vertical) var(--slide-ease) both slide-in-down;
+    }
+
+    /* Hard cut (data/screens.ts "cuts"): the new page simply replaces the old one. */
+    html[data-slide="cut"]::view-transition-old(root),
+    html[data-slide="cut"]::view-transition-new(root) {
+        animation: none;
+        mix-blend-mode: normal;
+    }
+
+    /* Opening a project from the pile: the screen is already its colour, which fades away to the page. */
+    html[data-slide="iris"]::view-transition-old(root) {
+        animation: none;
+    }
+    html[data-slide="iris"]::view-transition-new(root) {
+        animation: 420ms ease-out both iris-fade-in;
+        mix-blend-mode: normal;
+    }
+
+    /* After a finger swipe the old page is already off-screen (just background left),
+       so it stays put and only the new page slides in. */
+    html[data-slide^="in-"]::view-transition-old(root) {
+        animation: none;
+    }
+    html[data-slide="in-left"]::view-transition-new(root) {
+        animation: var(--slide-duration) var(--slide-ease) both slide-in-left;
+    }
+    html[data-slide="in-right"]::view-transition-new(root) {
+        animation: var(--slide-duration) var(--slide-ease) both slide-in-right;
+    }
+}

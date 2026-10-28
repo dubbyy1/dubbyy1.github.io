@@ -1,0 +1,45 @@
+---
+// Top bar for section pages (projects and the pages inside it): the small still logo in the
+// corner, linking home, and whatever is passed in on the right (e.g. the filter button).
+// fixed: stays put while scrolling (projects); otherwise it scrolls away with the page.
+import Logo from "./Logo.astro";
+
+interface Props {
+    fixed?: boolean;
+}
+const { fixed = true } = Astro.props;
+---
+
+<header class:list={{ fixed }}>
+    <a class="home" href="/" aria-label="Back to home">
+        <Logo links={false} animated={false} />
+    </a>
+    <slot />
+</header>
+
+<style>
+    header {
+        position: absolute;
+        z-index: 5;
+        inset: 0 0 auto;
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        padding: clamp(16px, 2.35vw, 30px);
+        padding-right: clamp(16px, 2vw, 26px);
+        pointer-events: none;
+    }
+
+    header.fixed {
+        position: fixed;
+    }
+
+    header > :global(*) {
+        pointer-events: auto;
+    }
+
+    .home {
+        display: block;
+        width: clamp(90px, 9.85vw, 126px);
+    }
+</style>

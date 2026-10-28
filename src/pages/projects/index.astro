@@ -1,0 +1,60 @@
+---
+// Projects: every project falls in as a block (components/ProjectPile.astro).
+// Projects live in src/content/projects, one Markdown file each.
+import { getCollection } from "astro:content";
+import Base from "../../layouts/Base.astro";
+import SectionHeader from "../../components/SectionHeader.astro";
+import ProjectPile from "../../components/ProjectPile.astro";
+
+const projects = (await getCollection("projects")).sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+---
+
+<Base title="projects">
+    <SectionHeader>
+        <button class="filter" type="button" aria-label="Filter projects">
+            <svg viewBox="0 0 30 19.15" aria-hidden="true">
+                <path d="M1.5 1.5H28.5" />
+                <path d="M7.65 9.96H22.35" />
+                <path d="M12.27 17.65H17.73" />
+            </svg>
+        </button>
+    </SectionHeader>
+    <main>
+        <h1 class="visually-hidden">Projects</h1>
+        <ProjectPile projects={projects} />
+    </main>
+</Base>
+
+<style>
+    .filter {
+        display: grid;
+        place-items: center;
+        /* 44px tap area around the 30px icon. */
+        width: 44px;
+        height: 44px;
+        margin: -3px -7px 0 0;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: var(--orange-dark);
+        cursor: pointer;
+        transition: scale 0.15s ease;
+    }
+
+    .filter svg {
+        width: 30px;
+        overflow: visible;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 3;
+        stroke-linecap: round;
+    }
+
+    .filter:active {
+        scale: 0.94;
+    }
+
+    main {
+        min-height: 100dvh;
+    }
+</style>

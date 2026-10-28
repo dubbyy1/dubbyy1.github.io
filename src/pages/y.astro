@@ -1,0 +1,19 @@
+---
+// Where the dark y in the logo leads. Just a black page for now.
+import Base from "../layouts/Base.astro";
+---
+
+<Base title="y">
+    <main></main>
+</Base>
+
+<style>
+    :global(html),
+    :global(body) {
+        background: #000;
+    }
+
+    main {
+        min-height: 100dvh;
+    }
+</style>

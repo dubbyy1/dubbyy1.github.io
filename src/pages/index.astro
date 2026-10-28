@@ -1,0 +1,230 @@
+---
+import Base from "../layouts/Base.astro";
+import Logo from "../components/Logo.astro";
+import SocialLinks from "../components/SocialLinks.astro";
+import ScreenArrows from "../components/ScreenArrows.astro";
+import { Image } from "astro:assets";
+import drawingCentre from "../assets/home/center.png";
+import drawingLeft from "../assets/home/left.png";
+import drawingRight from "../assets/home/right.png";
+import drawingCorner from "../assets/home/topright.png";
+
+// The line under the logo is one of these, picked at random on every visit. Pronunciations are bold.
+const taglines: { pronounced?: string; text?: string }[] = [
+    { pronounced: "/ˈduːbiː/" },
+    { pronounced: "doo-bee" },
+    { pronounced: "dubbyy" },
+    { text: "idiot at rest" },
+    { text: "jack of no trades" },
+    { text: "oh, this and that, nothing in particular" },
+    { text: "how did you get here?" },
+    { text: "behind you" },
+    { text: "hey, you. you're finally awake!"},
+    { text: "disgusting."},
+    { text: "head in the clouds"},
+    { text: "i don't want to say goodbye to you"},
+    { text: "so i'll just say good night to you"},
+    { text: "can you hear me?"},
+    { text: "the fall off is inevitable"},
+    { text: "come to Haven Dublin!"},
+    { text: "please don't touch anything"},
+    { text: "somebody should have told me it would be like this"},
+    { text: "loves us with some exceptions for reasons unknown"},
+    { text: "what do you think of that L"},
+    { text: "the world is yours"},
+    { text: "what a time to be alive"},
+    { text: "photographing dreams"},
+    { text: "someone get this tornado out of my room"},
+    { text: "that's the beauty of it, it doesn't do anything!"},
+    { text: "perhaps our fears are coming true"},
+    { text: "have you tried being happy?"},
+    { text: "i don't want to be an engineer"},
+    { text: "surely we'll live to see the day"},
+    { text: "sweet as candy soft as a kiss"},
+    { text: "can't be sober and great"},
+    { text: "work in progress"},
+    { text: "no cost too great"},
+    { text: "big as the what?"},
+    { text: "sing about me"},
+    { text: "formerly nozz90"},
+    { text: "new and improved!"},
+    { text: "est. 2010"},
+    { text: "aspiring billionaire"},
+    { text: "the human"},
+    { text: "partially functional"},
+    { text: "if you don't aim too high then you aim too low"},
+    { text: "don't look down"},
+    { text: "misery is boring"},
+    { text: "as seen on tv"},
+    { text: "no such thing as a life that's better than yours"},
+    { text: "print('hello world')"},
+    { text: "god in chains"}
+];
+---
+
+<Base>
+    {/* Hand-drawn notes, behind everything else. The side ones follow the arrows (--arrow-* in global.css). */}
+    <div class="doodles" aria-hidden="true">
+        <Image class="doodle left" src={drawingLeft} alt="" loading="eager" />
+        <Image class="doodle right" src={drawingRight} alt="" loading="eager" />
+        <Image class="doodle corner" src={drawingCorner} alt="" loading="eager" />
+    </div>
+
+    <main>
+        <div class="hero">
+            {/* Pointers to the projects (d) and about (u) pages, the colour and the y's outline: drawn around the logo. */}
+            <Image class="doodle centre" src={drawingCentre} alt="" loading="eager" />
+            <h1><Logo /></h1>
+            <p class="tagline">
+                {
+                    taglines.map((line, i) => (
+                        <span hidden={i !== 0}>
+                            {line.pronounced ? (
+                                <i>pronounced <b>{line.pronounced}</b></i>
+                            ) : (
+                                <i>{line.text}</i>
+                            )}
+                        </span>
+                    ))
+                }
+            </p>
+            <script is:inline data-astro-rerun>
+                // Runs as soon as the tagline is parsed (and again on each visit), so the first line never flashes.
+                {
+                    const lines = document.querySelector(".tagline").children;
+                    // Never show the same line twice in a row, so coming back always looks different.
+                    let last = -1;
+                    try { last = Number(sessionStorage.getItem("tagline") ?? -1); } catch {}
+                    const hasLast = last >= 0 && last < lines.length;
+                    let pick = Math.floor(Math.random() * (hasLast ? lines.length - 1 : lines.length));
+                    if (hasLast && pick >= last) pick++;
+                    try { sessionStorage.setItem("tagline", String(pick)); } catch {}
+                    for (let i = 0; i < lines.length; i++) lines[i].hidden = i !== pick;
+                }
+            </script>
+            <div class="socials">
+                <SocialLinks />
+            </div>
+        </div>
+    </main>
+    <ScreenArrows />
+</Base>
+
+<style>
+    main {
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: 24px clamp(56px, 12vw, 160px);
+    }
+
+    /* Everything in the hero is positioned in the logo's own units (it's 599 wide in the design),
+       so the whole group scales together. */
+    .hero {
+        container-type: inline-size;
+        position: relative;
+        width: min(599px, 100%);
+        /* Logo plus the icons that hang below it. */
+        aspect-ratio: 599 / 247;
+        /* The design sits the group slightly below centre. */
+        translate: 0 3.6%;
+    }
+
+    .hero > * {
+        --u: calc(100cqw / 599);
+    }
+
+    h1 {
+        margin: 0;
+    }
+
+    .tagline {
+        position: absolute;
+        left: calc(6 * var(--u));
+        top: calc(147 * var(--u));
+        margin: 0;
+        font-size: calc(24 * var(--u));
+        font-weight: 500;
+        color: hsl(30 90% 20%);
+        /* Long lines wrap before they reach the dropped y (the design's 410-wide text box). */
+        max-width: calc(410 * var(--u));
+        line-height: 1.3;
+    }
+
+    .tagline b {
+        /* Not 800: Nunito drops the IPA length mark (ː) from 800 up. */
+        font-weight: 780;
+    }
+
+    .socials {
+        position: absolute;
+        left: calc(266 * var(--u));
+        top: calc(187 * var(--u));
+        --social-size: calc(60 * var(--u));
+        --social-gap: calc(26.5 * var(--u));
+    }
+
+    /* Hand-drawn notes. Measured from the full mockup (a 1600×1000 screen):
+       the centre one in logo units, the side ones in arrow sizes from their arrow's centre. */
+    .doodle {
+        position: absolute;
+        height: auto;
+        pointer-events: none;
+        user-select: none;
+    }
+
+    /* In the hero's own layer, under the logo, tagline and icons. */
+    .centre {
+        left: calc(-42.1 * var(--u));
+        top: calc(-257 * var(--u));
+        width: calc(690.9 * var(--u));
+        z-index: -1;
+    }
+
+    .doodles .doodle {
+        position: fixed;
+    }
+
+    .left {
+        left: calc(var(--arrow-inset) + var(--arrow-size) * (0.5 + 0.519));
+        top: calc(var(--arrow-top) - var(--arrow-size) * 0.476);
+        width: calc(var(--arrow-size) * 1.227);
+    }
+
+    .right {
+        right: calc(var(--arrow-inset) + var(--arrow-size) * (0.5 - 0.795));
+        top: calc(var(--arrow-top) - var(--arrow-size) * 1.204);
+        width: calc(var(--arrow-size) * 1.612);
+    }
+
+    /* From the mockup: 330 of 3840 wide, 52 in from the top and right. */
+    .corner {
+        top: clamp(8px, 1.354vw, 30px);
+        right: clamp(8px, 1.354vw, 30px);
+        width: clamp(74px, 8.59vw, 193px);
+    }
+
+    /* Narrower screens: the logo fills the space beside the left arrow, so its label goes underneath. */
+    @media (max-width: 1130px) {
+        .left {
+            left: calc(var(--arrow-inset) + 4px);
+            top: calc(var(--arrow-top) + var(--arrow-size) * 0.6);
+        }
+    }
+
+    /* Phones: the arrows hug the edges, so the labels sit under / over them instead of beside. */
+    @media (max-width: 600px) {
+        .left {
+            left: 6px;
+            top: calc(var(--arrow-top) + 50px);
+            width: 62px;
+        }
+
+        .right {
+            right: 6px;
+            top: auto;
+            bottom: calc(100% - var(--arrow-top) + 26px);
+            width: 82px;
+        }
+    }
+</style>

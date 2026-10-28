@@ -1,0 +1,274 @@
+---
+// The projects as a pile of blocks. Each block is a link to its project, drawn as an SVG shape.
+// scripts/project-pile.ts then drops them from the top of the screen with physics.
+// Without JavaScript they just sit in rows.
+import "@fontsource/poppins/500.css";
+import { getImage } from "astro:assets";
+import type { CollectionEntry } from "astro:content";
+import { tagColour } from "../data/tags";
+
+interface Props {
+    projects: CollectionEntry<"projects">[];
+}
+
+// Bright but soft red, green and blue for the blocks.
+const fills = { red: "#ff7b7b", green: "#6fe07c", blue: "#6db5ff" };
+
+// Block outline in design px (1280-wide screen), with its size and balance point (centroid),
+// which is where the physics engine holds and spins it.
+function geometry(block: CollectionEntry<"projects">["data"]["block"]) {
+    if (block.shape === "rect") {
+        const { width: w, height: h } = block;
+        return { w, h, cx: w / 2, cy: h / 2, outline: `<rect width="${w}" height="${h}" rx="5" />` };
+    }
+    if (block.shape === "circle") {
+        const r = block.size / 2;
+        return { w: block.size, h: block.size, cx: r, cy: r, outline: `<circle cx="${r}" cy="${r}" r="${r}" />` };
+    }
+    const minX = Math.min(...block.points.map((p) => p[0]));
+    const minY = Math.min(...block.points.map((p) => p[1]));
+    const pts = block.points.map(([x, y]) => [x - minX, y - minY]);
+    const w = Math.max(...pts.map((p) => p[0]));
+    const h = Math.max(...pts.map((p) => p[1]));
+    // Area-weighted centroid, the same point Matter.js uses as the body's position.
+    let a = 0, cx = 0, cy = 0;
+    pts.forEach(([x1, y1], i) => {
+        const [x2, y2] = pts[(i + 1) % pts.length];
+        const cross = x1 * y2 - x2 * y1;
+        a += cross;
+        cx += (x1 + x2) * cross;
+        cy += (y1 + y2) * cross;
+    });
+    a /= 2;
+    cx /= 6 * a;
+    cy /= 6 * a;
+    const list = pts.map((p) => p.join(",")).join(" ");
+    return { w, h, cx, cy, points: pts, outline: `<polygon points="${list}" stroke-linejoin="round" />` };
+}
+
+const blocks = await Promise.all(
+    Astro.props.projects.map(async (project, i) => {
+        const { data } = project;
+        const g = geometry(data.block);
+        // Resized and compressed, except GIFs, which would lose their animation.
+        const img = data.block.image;
+        const image = !img
+            ? undefined
+            : img.format === "gif"
+              ? img.src
+              : // Wide enough to cover the block once cropped to its shape, at 2× for sharp screens.
+                (await getImage({ src: img, width: Math.round(Math.max(g.w, (g.h * img.width) / img.height) * 2) })).src;
+        return { project, g, image, clipId: `block-clip-${i}` };
+    }),
+);
+---
+
+<div class="pile">
+    {
+        blocks.map(({ project, g, image, clipId }) => {
+            const { block } = project.data;
+            const shapeClip =
+                block.shape === "circle"
+                    ? "circle(50%)"
+                    : block.shape === "polygon"
+                      ? `polygon(${g.points!.map(([x, y]) => `${(x / g.w) * 100}% ${(y / g.h) * 100}%`).join(", ")})`
+                      : "inset(0 round 5px)";
+            return (
+                <a
+                    class="block"
+                    href={`/projects/${project.id}`}
+                    aria-label={project.data.title}
+                    style={`--w: ${g.w}; --h: ${g.h}; --cx: ${g.cx}; --cy: ${g.cy}; --label: ${block.labelSize}; --tilt: ${block.labelAngle}deg; clip-path: ${shapeClip};`}
+                    data-shape={block.shape}
+                    data-fill={fills[block.colour]}
+                    data-points={g.points && JSON.stringify(g.points)}
+                    data-title={project.data.title}
+                    data-description={project.data.description}
+                    data-tags={JSON.stringify(project.data.tags.map((tag) => [tag, tagColour(tag)]))}
+                >
+                    <svg viewBox={`0 0 ${g.w} ${g.h}`} aria-hidden="true">
+                        <defs>
+                            <clipPath id={clipId} set:html={g.outline} />
+                        </defs>
+                        <g clip-path={`url(#${clipId})`}>
+                            <g fill={fills[block.colour]} set:html={g.outline} />
+                            {image && (
+                                <image class="preview" href={image} width={g.w} height={g.h} preserveAspectRatio="xMidYMid slice" />
+                            )}
+                        </g>
+                    </svg>
+                    <span class="label">{block.label ?? project.data.title}</span>
+                </a>
+            );
+        })
+    }
+
+    <div class="card" hidden aria-hidden="true">
+        <p class="card-title"></p>
+        <ul class="card-tags"></ul>
+        <p class="card-description"></p>
+    </div>
+</div>
+
+<script>
+    import { startPile } from "../scripts/project-pile";
+
+    document.addEventListener("astro:page-load", () => {
+        const root = document.querySelector<HTMLElement>(".pile");
+        if (!root) return;
+        const stop = startPile(root);
+        document.addEventListener("astro:before-swap", stop, { once: true });
+    });
+</script>
+
+<style>
+    /* Without JavaScript: blocks in rows. --s scales design px to the screen. */
+    .pile {
+        --s: 0.6;
+        position: relative;
+        min-height: 100dvh;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        justify-content: center;
+        gap: 16px;
+        padding: 120px 16px 16px;
+        overflow: hidden;
+    }
+
+    .block {
+        position: relative;
+        flex: none;
+        width: calc(var(--w) * var(--s) * 1px);
+        height: calc(var(--h) * var(--s) * 1px);
+        color: #000;
+        text-decoration: none;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .block svg {
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+    }
+
+    .label {
+        position: absolute;
+        left: calc(var(--cx) / var(--w) * 100%);
+        top: calc(var(--cy) / var(--h) * 100%);
+        width: max-content;
+        max-width: calc(var(--w) * 0.78 * var(--s) * 1px);
+        translate: -50% -50%;
+        rotate: var(--tilt);
+        font-weight: 500;
+        font-size: calc(var(--label) * var(--s) * 1px);
+        line-height: 1.2;
+        text-align: center;
+        pointer-events: none;
+    }
+
+    /* A project's image shows only while its block is hovered, fading in over the colour and label. */
+    .preview {
+        opacity: 0;
+        transition: opacity 0.2s ease;
+    }
+
+    .label {
+        transition: opacity 0.2s ease;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .block:hover .preview {
+            opacity: 1;
+        }
+
+        .block:hover:has(.preview) .label {
+            opacity: 0;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .preview,
+        .label {
+            transition: none;
+        }
+    }
+
+    /* With physics: the script places every block itself. */
+    .pile:global(.live) {
+        display: block;
+        height: 100dvh;
+        padding: 0;
+    }
+
+    .pile:global(.live) .block {
+        position: absolute;
+        left: 0;
+        top: 0;
+        transform-origin: calc(var(--cx) * var(--s) * 1px) calc(var(--cy) * var(--s) * 1px);
+        visibility: hidden;
+        will-change: transform;
+    }
+
+    .pile:global(.live) .block:global(.dropped) {
+        visibility: visible;
+    }
+
+    /* Hover card, as in the design: dark box with title, tags and description. Follows the pointer. */
+    .card {
+        position: fixed;
+        left: 0;
+        top: 0;
+        z-index: 10;
+        width: max-content;
+        max-width: 260px;
+        padding: 6px 10px 9px;
+        /* Catppuccin Mocha: Base, with a Crust border. */
+        background: #1e1e2e;
+        border: 6px solid #11111b;
+        border-radius: 4px;
+        color: #cdd6f4;
+        font-family: "Poppins", var(--font-body);
+        font-weight: 500;
+        pointer-events: none;
+    }
+
+    .card[hidden] {
+        display: none;
+    }
+
+    .card-title {
+        margin: 0;
+        font-size: 20px;
+        line-height: 1.3;
+    }
+
+    .card-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        margin: 2px 0 4px;
+        padding: 0;
+        list-style: none;
+    }
+
+    .card-tags:empty {
+        display: none;
+    }
+
+    .card-tags :global(li) {
+        padding: 0 6px;
+        border: 1px solid #11111b;
+        border-radius: 10px;
+        color: #1e1e2e;
+        font-size: 15px;
+        line-height: 18px;
+    }
+
+    .card-description {
+        margin: 0;
+        color: #bac2de;
+        font-size: 15px;
+        line-height: 1.35;
+    }
+</style>

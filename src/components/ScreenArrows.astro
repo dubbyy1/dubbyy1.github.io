@@ -1,0 +1,72 @@
+---
+// The < and > arrows at the sides of a screen. They link to the neighbouring screens in data/screens.ts;
+// there's no arrow on a side with no screen.
+import { neighbours } from "../data/screens";
+
+const { prev, next } = neighbours(Astro.url.pathname);
+const sides = [
+    { side: "left", target: prev },
+    { side: "right", target: next },
+] as const;
+---
+
+{
+    sides.map(({ side, target }) =>
+        target && (
+            <a class:list={["arrow", side]} href={target.path} aria-label={`Go to ${target.name}`}>
+                <svg viewBox="0 0 63.6396 66.468" aria-hidden="true">
+                    <path d="M0 62.468V4C0 1.79086 1.79086 0 4 0H21.4558C23.665 0 25.4558 1.79086 25.4558 4V35.8808C25.4558 38.09 27.2467 39.8808 29.4559 39.8808H59.6396C61.8488 39.8808 63.6396 41.6717 63.6396 43.8808V62.468C63.6396 64.6772 61.8488 66.468 59.6396 66.468H4C1.79086 66.468 0 64.6772 0 62.468Z" />
+                </svg>
+            </a>
+        )
+    )
+}
+
+<style>
+    /* Size and place come from --arrow-* in global.css, which the home page's drawings also follow. */
+    .arrow {
+        position: fixed;
+        top: var(--arrow-top);
+        width: var(--arrow-size);
+        height: var(--arrow-size);
+        display: grid;
+        place-items: center;
+        translate: 0 -50%;
+        color: var(--orange-soft);
+        transition: color 0.2s, scale 0.2s;
+    }
+
+    .left {
+        left: var(--arrow-inset);
+    }
+
+    .right {
+        right: var(--arrow-inset);
+    }
+
+    /* The arrow is an L shape, rotated into a chevron. */
+    svg {
+        width: 69%;
+        fill: currentColor;
+    }
+
+    .left svg {
+        rotate: 45deg;
+    }
+
+    .right svg {
+        rotate: -135deg;
+    }
+
+    .arrow:hover {
+        color: var(--orange);
+        scale: 1.08;
+    }
+
+    /* Phones can swipe, so the arrows are just a hint (see --arrow-* in global.css). */
+    @media (max-width: 600px) {
+        svg {
+            width: 40%;
+        }
+    }
+</style>
