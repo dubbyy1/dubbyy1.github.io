@@ -54,4 +54,18 @@ const projects = defineCollection({
         }),
 });
 
-export const collections = { projects };
+// The answers on the about page: one Markdown file per question in src/content/me, named after its word
+// (who.md, what.md...). {name} in the text becomes the badge's name, typed along with it.
+const about = defineCollection({
+    loader: glob({ pattern: "*.md", base: "./src/content/me" }),
+    schema: z.object({
+        // Show the timeline of events (src/data/timeline.ts) under the text.
+        timeline: z.boolean().default(false),
+        // Show the world map of places (src/data/places.ts) under the text.
+        map: z.boolean().default(false),
+        // Show one random card at a time from src/data/why.ts under the text.
+        cards: z.boolean().default(false),
+    }),
+});
+
+export const collections = { projects, about };

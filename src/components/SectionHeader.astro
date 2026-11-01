@@ -2,18 +2,24 @@
 // Top bar for section pages (projects and the pages inside it): the small still logo in the
 // corner, linking home, and whatever is passed in on the right (e.g. the filter button).
 // fixed: stays put while scrolling (projects); otherwise it scrolls away with the page.
+// page: shown next to the logo as "/page", like the end of the address (e.g. "projects", "me").
+import "@fontsource-variable/fredoka/wght.css";
 import Logo from "./Logo.astro";
 
 interface Props {
     fixed?: boolean;
+    page?: string;
 }
-const { fixed = true } = Astro.props;
+const { fixed = true, page } = Astro.props;
 ---
 
 <header class:list={{ fixed }}>
-    <a class="home" href="/" aria-label="Back to home">
-        <Logo links={false} animated={false} />
-    </a>
+    <div class="where">
+        <a class="home" href="/" aria-label="Back to home">
+            <Logo links={false} animated={false} />
+        </a>
+        {page && <span class="page" aria-hidden="true">/{page}</span>}
+    </div>
     <slot />
 </header>
 
@@ -38,8 +44,25 @@ const { fixed = true } = Astro.props;
         pointer-events: auto;
     }
 
+    /* Sizes follow the logo's (32px text and a 9px gap beside the 126px logo in the design). */
+    .where {
+        display: flex;
+        align-items: flex-start;
+        gap: clamp(6px, 0.7vw, 9px);
+    }
+
     .home {
         display: block;
         width: clamp(90px, 9.85vw, 126px);
+    }
+
+    .page {
+        margin-top: -0.12em;
+        font-family: "Fredoka Variable", var(--font-body);
+        font-weight: 700;
+        font-size: clamp(23px, 2.5vw, 32px);
+        line-height: 1.2;
+        color: var(--orange-soft);
+        white-space: nowrap;
     }
 </style>

@@ -1,0 +1,13 @@
+---
+// Shows what's inside it with every {name} swapped for a <span class="live-name"> holding the given name.
+// The about page uses it on its Markdown answers, and its script keeps those spans typing along with the badge.
+interface Props {
+    name: string;
+}
+const { name } = Astro.props;
+
+const escaped = name.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+const html = (await Astro.slots.render("default")).replaceAll("{name}", `<span class="live-name">${escaped}</span>`);
+---
+
+<Fragment set:html={html} />

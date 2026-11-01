@@ -12,12 +12,26 @@ const FIRST_DROP = 250; // ms after the page appears
 const DROP_GAP = 220; // ms between blocks
 const STEP = 1000 / 60;
 
+// Blocks squash when they land and wobble back, so they look soft. The physics stays rigid; this is only drawn.
+const SQUISH_PER_SPEED = 0.012; // how hard a hit squashes, per unit of impact speed
+const SQUISH_MIN_SPEED = 1.5; // gentler bumps (like blocks settling against each other) don't squash
+const SQUISH_MAX = 0.22; // most a block ever squashes, as a fraction of its size
+const SQUISH_STIFFNESS = 0.2; // how quickly it springs back (per step)
+const SQUISH_DAMPING = 0.2; // how quickly the wobble dies down (per step)
+
 interface Block {
     el: HTMLElement;
     body: Matter.Body;
     cx: number; // balance point inside the element, in screen px
     cy: number;
     dropped: boolean;
+    // Where the body was one step ago. Frames land between steps, so each one is drawn part way from here.
+    prevX: number;
+    prevY: number;
+    prevAngle: number;
+    squish: number; // how squashed it is right now along squishAngle (negative: stretched)
+    squishSpeed: number;
+    squishAngle: number; // direction of the last hit, in radians
 }
 
 export function startPile(root: HTMLElement): () => void {
@@ -33,7 +47,9 @@ export function startPile(root: HTMLElement): () => void {
     let width = root.clientWidth;
     let height = root.clientHeight;
 
-    const engine = Engine.create({ enableSleeping: true });
+    // More solver passes than Matter's defaults (6 and 4): stacked blocks settle firmly instead of trembling.
+    // Cheap with only a handful of bodies.
+    const engine = Engine.create({ enableSleeping: true, positionIterations: 12, velocityIterations: 10 });
     engine.gravity.y = 2.4;
 
     // Floor and side walls just outside the visible area. They reach far up so falling blocks stay in.
@@ -80,27 +96,117 @@ export function startPile(root: HTMLElement): () => void {
         } else {
             body = Bodies.rectangle(0, 0, w, h, { ...opts, chamfer: { radius: 5 * s } });
         }
-        return { el, body, cx: num("--cx"), cy: num("--cy"), dropped: false };
+        return {
+            el,
+            body,
+            cx: num("--cx"),
+            cy: num("--cy"),
+            dropped: false,
+            prevX: 0,
+            prevY: 0,
+            prevAngle: 0,
+            squish: 0,
+            squishSpeed: 0,
+            squishAngle: 0,
+        };
     });
 
+    // A hit squashes the block along the direction it came from, harder the faster it was going.
+    // A weaker hit doesn't interrupt a bigger wobble that's already happening.
+    const byBody = new Map(blocks.map((b) => [b.body, b]));
+    const hit = (b: Block | undefined, speed: number, angle: number) => {
+        if (!b || speed < SQUISH_MIN_SPEED) return;
+        const kick = Math.min(speed * SQUISH_PER_SPEED, SQUISH_MAX);
+        if (kick <= Math.abs(b.squishSpeed) + Math.abs(b.squish) * Math.sqrt(SQUISH_STIFFNESS)) return;
+        b.squishSpeed = kick;
+        b.squishAngle = angle;
+    };
+    if (!reduceMotion) {
+        Matter.Events.on(engine, "collisionStart", (e) => {
+            for (const { bodyA, bodyB, collision } of e.pairs) {
+                // Odd-shaped blocks are made of several parts; the block is their parent.
+                const a = bodyA.parent;
+                const b = bodyB.parent;
+                const { normal } = collision;
+                const speed = Math.abs(
+                    (a.velocity.x - b.velocity.x) * normal.x + (a.velocity.y - b.velocity.y) * normal.y,
+                );
+                const angle = Math.atan2(normal.y, normal.x);
+                hit(byBody.get(a), speed, angle);
+                hit(byBody.get(b), speed, angle);
+            }
+        });
+    }
+
+    // One step of the spring that pulls each squashed block back into shape.
+    const springBack = () => {
+        for (const b of blocks) {
+            b.squishSpeed -= SQUISH_STIFFNESS * b.squish + SQUISH_DAMPING * b.squishSpeed;
+            b.squish = Math.min(Math.max(b.squish + b.squishSpeed, -SQUISH_MAX), SQUISH_MAX);
+            if (Math.abs(b.squish) < 0.001 && Math.abs(b.squishSpeed) < 0.001) b.squish = b.squishSpeed = 0;
+        }
+    };
+
     // Start a block just above the screen at a random spot, tipped a little.
+    // It must start clear of the others: Matter shoves overlapping bodies apart violently, which made
+    // blocks fly about when one appeared on top of a block that hadn't fallen far yet.
+    const SPAWN_GAP = 12;
+    const clearOf = (body: Matter.Body, other: Matter.Body) =>
+        body.bounds.max.x + SPAWN_GAP < other.bounds.min.x ||
+        other.bounds.max.x + SPAWN_GAP < body.bounds.min.x ||
+        body.bounds.max.y + SPAWN_GAP < other.bounds.min.y ||
+        other.bounds.max.y + SPAWN_GAP < body.bounds.min.y;
     const drop = (b: Block, aboveBy = 0) => {
         const w = b.body.bounds.max.x - b.body.bounds.min.x;
         const h = b.body.bounds.max.y - b.body.bounds.min.y;
-        const x = w / 2 + Math.random() * Math.max(width - w, 0);
-        Body.setPosition(b.body, { x, y: -h / 2 - 20 - aboveBy });
+        const others = blocks.filter((o) => o.dropped).map((o) => o.body);
         Body.setAngle(b.body, (Math.random() - 0.5) * 0.8);
+        // A few random spots first, so the pile still comes out mixed up.
+        for (let i = 0; i < 8; i++) {
+            const x = w / 2 + Math.random() * Math.max(width - w, 0);
+            Body.setPosition(b.body, { x, y: -h / 2 - 20 - aboveBy });
+            if (others.every((o) => clearOf(b.body, o))) break;
+        }
+        // Still on top of something: lift it above every block in its column. It just falls a little further.
+        if (!others.every((o) => clearOf(b.body, o))) {
+            const column = others.filter(
+                (o) => o.bounds.min.x < b.body.bounds.max.x + SPAWN_GAP && b.body.bounds.min.x < o.bounds.max.x + SPAWN_GAP,
+            );
+            const top = Math.min(...column.map((o) => o.bounds.min.y));
+            Body.setPosition(b.body, {
+                x: b.body.position.x,
+                y: b.body.position.y - (b.body.bounds.max.y - top + SPAWN_GAP),
+            });
+        }
         Body.setAngularVelocity(b.body, (Math.random() - 0.5) * 0.04);
         Composite.add(engine.world, b.body);
+        remember(b);
         b.dropped = true;
         b.el.classList.add("dropped");
     };
 
-    const render = () => {
+    const remember = (b: Block) => {
+        b.prevX = b.body.position.x;
+        b.prevY = b.body.position.y;
+        b.prevAngle = b.body.angle;
+    };
+
+    // `along` is how far this frame is between the last step and the next (0–1). Drawing there, rather
+    // than snapping to the last step, keeps motion even when frames don't line up with steps (e.g. 120Hz screens).
+    const render = (along = 1) => {
+        const mix = (from: number, to: number) => from + (to - from) * along;
         for (const b of blocks) {
             if (!b.dropped) continue;
-            const { x, y } = b.body.position;
-            b.el.style.transform = `translate(${x - b.cx}px, ${y - b.cy}px) rotate(${b.body.angle}rad)`;
+            const x = mix(b.prevX, b.body.position.x);
+            const y = mix(b.prevY, b.body.position.y);
+            const angle = mix(b.prevAngle, b.body.angle);
+            let transform = `translate(${x - b.cx}px, ${y - b.cy}px)`;
+            // Squashed along the hit, bulging out the other way so it keeps about the same size.
+            if (b.squish) {
+                const a = b.squishAngle;
+                transform += ` rotate(${a}rad) scale(${1 - b.squish}, ${1 + b.squish}) rotate(${-a}rad)`;
+            }
+            b.el.style.transform = `${transform} rotate(${angle}rad)`;
         }
     };
 
@@ -116,6 +222,7 @@ export function startPile(root: HTMLElement): () => void {
     // after a few quiet-ish seconds is left where it is.
     const settled = () => {
         if (nextDrop < blocks.length) return false;
+        if (blocks.some((b) => b.squish || b.squishSpeed)) return false;
         if (blocks.every((b) => b.body.isSleeping)) return true;
         const slow = blocks.every((b) => b.body.speed < 0.05 && Math.abs(b.body.angularSpeed) < 0.002);
         if (!slow) quietSince = -1;
@@ -129,12 +236,16 @@ export function startPile(root: HTMLElement): () => void {
         last = now;
         while (acc >= STEP) {
             while (nextDrop < blocks.length && simTime >= FIRST_DROP + nextDrop * DROP_GAP) drop(blocks[nextDrop++]);
+            blocks.forEach(remember);
             Engine.update(engine, STEP);
+            springBack();
             simTime += STEP;
             acc -= STEP;
         }
-        render();
-        frame = settled() ? 0 : requestAnimationFrame(tick);
+        const done = settled();
+        // The last frame is drawn exactly where everything came to rest.
+        render(done ? 1 : acc / STEP);
+        frame = done ? 0 : requestAnimationFrame(tick);
     };
     const wake = () => {
         if (frame) return;
@@ -163,6 +274,7 @@ export function startPile(root: HTMLElement): () => void {
             if (!b.dropped) continue;
             const { x, y } = b.body.position;
             Body.setPosition(b.body, { x: Math.min(Math.max(x, 0), width), y: Math.min(y, height) });
+            remember(b); // moved, not travelled: don't draw it sliding across
             Sleeping.set(b.body, false);
         }
         reduceMotion ? render() : wake();

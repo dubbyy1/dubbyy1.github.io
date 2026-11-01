@@ -1,0 +1,810 @@
+---
+// About me: the profile picture with my name curved around it, and a few questions about me.
+// Pick a question with the < > buttons, by clicking it, or with the arrow keys.
+import "@fontsource-variable/fredoka/wght.css";
+import { getImage } from "astro:assets";
+import { getEntry, render } from "astro:content";
+import Base from "../layouts/Base.astro";
+import SectionHeader from "../components/SectionHeader.astro";
+import Timeline from "../components/Timeline.astro";
+import WorldMap from "../components/WorldMap.astro";
+import WhyCards from "../components/WhyCards.astro";
+import WithName from "../components/WithName.astro";
+import twobee from "../assets/me/pfp.png";
+// The real photo (as on LinkedIn).
+import photo from "../assets/me/photo.jpg";
+import dubby from "../assets/me/dubby.webp";
+
+// The names the badge cycles through (over the top, under the bottom) and the picture that goes with each.
+// The first one shows when the page opens. Whenever the picture changes, it flips over to the new one.
+// To give a name its own picture, import the image above and set it as that name's `picture`.
+const names = [
+    { top: "Dubby", bottom: "", picture: dubby },
+    { top: "Chidubem", bottom: "Uzoukwu", picture: photo },
+    { top: "dubbyy", bottom: "", picture: twobee },
+];
+// Each name with its picture sized for the badge (about 300px, doubled for sharp screens), for the script.
+const badgeNames = await Promise.all(
+    names.map(async ({ top, bottom, picture }) => ({
+        top,
+        bottom,
+        src: (await getImage({ src: picture, width: 640 })).src,
+    })),
+);
+
+// The questions, in order. The first one shows when the page opens.
+// Each one's answer is the Markdown file of the same name in src/content/me (who.md, what.md...).
+const words = ["who", "what", "when", "where", "why"];
+const questions = await Promise.all(
+    words.map(async (word) => {
+        const answer = await getEntry("about", word);
+        if (!answer) throw new Error(`The about page has no answer for "${word}": add src/content/me/${word}.md`);
+        const { Content } = await render(answer);
+        const { timeline, map, cards } = answer.data;
+        return { word, Content, hasText: !!answer.body?.trim(), timeline, map, cards };
+    }),
+);
+
+// The < > arrows: the same L shape as the screen arrows (components/ScreenArrows.astro), rotated.
+const arrow =
+    "M0 62.468V4C0 1.79086 1.79086 0 4 0H21.4558C23.665 0 25.4558 1.79086 25.4558 4V35.8808C25.4558 38.09 27.2467 39.8808 29.4559 39.8808H59.6396C61.8488 39.8808 63.6396 41.6717 63.6396 43.8808V62.468C63.6396 64.6772 61.8488 66.468 59.6396 66.468H4C1.79086 66.468 0 64.6772 0 62.468Z";
+---
+
+<Base title="me" description="About Chidubem (Dubby) Uzoukwu.">
+    <SectionHeader page="me" fixed={false} />
+    <main>
+        <div class="about">
+            <h1 class="visually-hidden">About me: Chidubem Uzoukwu</h1>
+
+            {/* The picture, with "Chidubem" curving over the top and "Uzoukwu" under the bottom.
+                Every few seconds the name is typed over with the next one in `names` (at the top). */}
+            <div class="badge" data-names={JSON.stringify(badgeNames)}>
+                {/* A two-sided card: the next picture is put on the hidden side, then it flips over. */}
+                <div class="pfp" data-side="front" role="img" aria-label="Dubby's profile picture">
+                    <div class="card">
+                        <img class="face front" src={badgeNames[0].src} alt="" width="640" height="640" />
+                        <img class="face back" src={badgeNames[0].src} alt="" width="640" height="640" />
+                    </div>
+                </div>
+                <svg class="name" viewBox="-240 -240 480 480" aria-hidden="true">
+                    <defs>
+                        {/* Over the top, left to right; letters stand on it pointing out. */}
+                        <path id="name-top" d="M -175 0 A 175 175 0 0 1 175 0" />
+                        {/* Under the bottom, left to right; letters hang from it pointing in. */}
+                        <path id="name-bottom" d="M -217 0 A 217 217 0 0 0 217 0" />
+                    </defs>
+                    <text class="first-name">
+                        <textPath href="#name-top" startOffset="50%"><tspan class="typed">{names[0].top}</tspan><tspan class="caret">|</tspan></textPath>
+                    </text>
+                    <text class="last-name">
+                        <textPath href="#name-bottom" startOffset="50%"><tspan class="typed">{names[0].bottom}</tspan><tspan class="caret">|</tspan></textPath>
+                    </text>
+                </svg>
+            </div>
+
+            <div class="questions">
+                <div class="picker">
+                    <button class="step prev" type="button" aria-label="Previous question">
+                        <svg viewBox="0 0 63.6396 66.468" aria-hidden="true"><path d={arrow} /></svg>
+                    </button>
+                    <div class="words" role="tablist" aria-label="About me">
+                        {
+                            questions.map(({ word }, i) => (
+                                <button
+                                    class="word"
+                                    type="button"
+                                    role="tab"
+                                    id={`q-${word}`}
+                                    aria-controls={`a-${word}`}
+                                    aria-selected={i === 0 ? "true" : "false"}
+                                    tabindex={i === 0 ? 0 : -1}
+                                >
+                                    {/* The chosen one is capitalised with a question mark: "Who?". */}
+                                    <span class="first">{word[0]}</span>{word.slice(1)}<span class="mark">?</span>
+                                </button>
+                            ))
+                        }
+                    </div>
+                    <button class="step next" type="button" aria-label="Next question">
+                        <svg viewBox="0 0 63.6396 66.468" aria-hidden="true"><path d={arrow} /></svg>
+                    </button>
+                    {/* The one "?" that slides to whichever word is picked; each word's own "?" just keeps its space. */}
+                    <span class="floating-mark" aria-hidden="true">?</span>
+                </div>
+                {
+                    questions.map(({ word, Content, hasText, timeline, map, cards }, i) => (
+                        <div class="answer" role="tabpanel" id={`a-${word}`} aria-labelledby={`q-${word}`} hidden={i !== 0}>
+                            {hasText && (
+                                <div class="text">
+                                    <WithName name={[names[0].top, names[0].bottom].filter(Boolean).join(" ")}>
+                                        <Content />
+                                    </WithName>
+                                </div>
+                            )}
+                            {timeline && <Timeline />}
+                            {map && <WorldMap />}
+                            {cards && <WhyCards />}
+                        </div>
+                    ))
+                }
+                <script is:inline data-astro-rerun>
+                    // Open on the question in the address (/me#where) straight away, so "who" never flashes up first.
+                    {
+                        const words = [...document.querySelectorAll(".about .word")];
+                        const picked = words.findIndex((w) => w.id === `q-${location.hash.slice(1)}`);
+                        if (picked > 0) {
+                            words.forEach((w, j) => {
+                                w.setAttribute("aria-selected", String(j === picked));
+                                w.tabIndex = j === picked ? 0 : -1;
+                            });
+                            document.querySelectorAll(".about .answer").forEach((a, j) => (a.hidden = j !== picked));
+                        }
+                    }
+                </script>
+            </div>
+        </div>
+    </main>
+</Base>
+
+<script>
+    // A name from `names` at the top of the page, with its picture's address.
+    interface BadgeName {
+        top: string;
+        bottom: string;
+        src: string;
+    }
+
+    const HOLD = 4000; // ms each name stays up
+    const DELETE_SPEED = 30; // ms per letter backspaced
+    const TYPE_SPEED = 65; // ms per letter typed
+    const PAUSE = 180; // ms between deleting the old name and typing the new one
+
+    // Types each name over the last one along the badge's curves, calling onName with the new name's
+    // place in `names` as it starts to appear. Returns a function that stops it.
+    function cycleNames(svg: SVGSVGElement, names: BadgeName[], onName: (n: number) => void): () => void {
+        const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const arcs = [...svg.querySelectorAll("text")].map((text) => ({
+            text,
+            path: text.querySelector("textPath")!,
+            typed: text.querySelector<SVGTSpanElement>(".typed")!,
+            caret: text.querySelector<SVGTSpanElement>(".caret")!,
+        }));
+        type Arc = (typeof arcs)[number];
+
+        // Words are typed from a fixed start point, placed so the finished word ends up centred on its curve.
+        const placeFor = (arc: Arc, word: string) => {
+            const shown = arc.typed.textContent;
+            arc.typed.textContent = word;
+            arc.caret.style.display = "none";
+            const length = arc.text.getComputedTextLength();
+            arc.typed.textContent = shown;
+            arc.caret.style.display = "";
+            const curve = svg.querySelector<SVGPathElement>(arc.path.getAttribute("href")!)!;
+            arc.path.setAttribute("startOffset", String((curve.getTotalLength() - length) / 2));
+        };
+        for (const arc of arcs) {
+            arc.text.style.textAnchor = "start";
+            placeFor(arc, arc.typed.textContent ?? "");
+        }
+
+        // The cursor only shows on the curve being typed on.
+        const typingOn = (arc: Arc | null) => arcs.forEach((a) => a.text.classList.toggle("typing", a === arc));
+
+        let timer = 0;
+        const wait = (ms: number) => new Promise<void>((done) => (timer = window.setTimeout(done, ms)));
+        let stopped = false;
+
+        const run = async () => {
+            for (let n = 1; !stopped; n = (n + 1) % names.length) {
+                await wait(HOLD);
+                if (stopped) return;
+                const next = [names[n].top, names[n].bottom];
+                if (reduceMotion) {
+                    onName(n);
+                    arcs.forEach((arc, i) => {
+                        arc.typed.textContent = next[i];
+                        placeFor(arc, next[i]);
+                    });
+                    continue;
+                }
+                // Backspace the bottom line, then the top.
+                for (const arc of [...arcs].reverse()) {
+                    if (!arc.typed.textContent) continue;
+                    typingOn(arc);
+                    while (arc.typed.textContent && !stopped) {
+                        arc.typed.textContent = arc.typed.textContent.slice(0, -1);
+                        await wait(DELETE_SPEED);
+                    }
+                }
+                typingOn(arcs[0]);
+                onName(n);
+                await wait(PAUSE);
+                // Type the top line, then the bottom.
+                for (const [i, arc] of arcs.entries()) {
+                    if (!next[i]) continue;
+                    placeFor(arc, next[i]);
+                    typingOn(arc);
+                    for (const letter of next[i]) {
+                        if (stopped) return;
+                        arc.typed.textContent += letter;
+                        await wait(TYPE_SPEED);
+                    }
+                }
+                typingOn(null);
+            }
+        };
+        run();
+
+        return () => {
+            stopped = true;
+            clearTimeout(timer);
+        };
+    }
+
+    document.addEventListener("astro:page-load", () => {
+        const root = document.querySelector<HTMLElement>(".about");
+        if (!root) return;
+        // Each name comes with its picture: when it's a different one, it goes on the side facing away,
+        // then the card flips over to it.
+        const badge = root.querySelector<HTMLElement>(".badge")!;
+        const names: BadgeName[] = JSON.parse(badge.dataset.names!);
+        const pfp = badge.querySelector<HTMLElement>(".pfp")!;
+        names.forEach(({ src }) => (new Image().src = src)); // load them all now, so flips don't wait
+        const stopNames = cycleNames(badge.querySelector<SVGSVGElement>(".name")!, names, async (n) => {
+            const up = pfp.dataset.side === "back" ? "back" : "front";
+            const away = up === "front" ? "back" : "front";
+            const showing = pfp.querySelector<HTMLImageElement>(`.face.${up}`)!;
+            if (showing.getAttribute("src") === names[n].src) return;
+            const hidden = pfp.querySelector<HTMLImageElement>(`.face.${away}`)!;
+            hidden.src = names[n].src;
+            await hidden.decode().catch(() => {});
+            pfp.dataset.side = away;
+        });
+
+        // {name} in the answers copies the badge letter by letter, cursor and all.
+        const nameSvg = badge.querySelector<SVGSVGElement>(".name")!;
+        const typed = [...nameSvg.querySelectorAll(".typed")];
+        const liveNames = [...root.querySelectorAll<HTMLElement>(".live-name")];
+        const mirror = () => {
+            const name = typed.map((t) => t.textContent).filter(Boolean).join(" ");
+            const typing = !!nameSvg.querySelector(".typing");
+            for (const live of liveNames) {
+                live.textContent = name;
+                live.classList.toggle("typing", typing);
+            }
+        };
+        const watchName = new MutationObserver(mirror);
+        watchName.observe(nameSvg, { subtree: true, childList: true, characterData: true, attributeFilter: ["class"] });
+        const words = [...root.querySelectorAll<HTMLButtonElement>(".word")];
+        const answers = [...root.querySelectorAll<HTMLElement>(".answer")];
+        // Starts on whichever the address picked (see the inline script after the answers).
+        let current = Math.max(
+            words.findIndex((w) => w.getAttribute("aria-selected") === "true"),
+            0,
+        );
+
+        // Everything in the row moves when the picked word changes size, so each one slides from where it was.
+        const movers = [...words, ...root.querySelectorAll<HTMLElement>(".step")];
+        const slide = matchMedia("(prefers-reduced-motion: no-preference)");
+
+        // The "?" is its own element, so it can travel separately. It rests where the picked word's own
+        // (invisible) "?" is. Offsets ignore transforms, so this is where things settle, even mid-slide.
+        const picker = root.querySelector<HTMLElement>(".picker")!;
+        const mark = picker.querySelector<HTMLElement>(".floating-mark")!;
+        const placeMark = () => {
+            const word = words[current];
+            const spot = word.querySelector<HTMLElement>(".mark")!;
+            mark.style.translate = `${word.offsetLeft + spot.offsetLeft}px ${word.offsetTop + spot.offsetTop}px`;
+        };
+        picker.classList.add("floating");
+        placeMark();
+        document.fonts.ready.then(placeMark); // the words change width once Nunito loads
+        addEventListener("resize", placeMark);
+
+        // Slides along the line, behind the words, from where it's drawn now to its new spot.
+        const moveMark = () => {
+            const was = mark.getBoundingClientRect();
+            mark.getAnimations().forEach((a) => a.cancel());
+            placeMark();
+            if (!slide.matches) return;
+            const now = mark.getBoundingClientRect();
+            const dx = was.left - now.left;
+            const dy = was.top - now.top;
+            if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+            mark.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], {
+                // A little longer than the words' slide, so it trails in after them.
+                duration: 300,
+                easing: "cubic-bezier(0.23, 1, 0.32, 1)", // ease-out-quint: off the mark at once, then settles
+            });
+        };
+
+        const pick = (i: number, focus = false) => {
+            const before = movers.map((el) => el.getBoundingClientRect());
+
+            current = (i + words.length) % words.length;
+            words.forEach((w, j) => {
+                w.setAttribute("aria-selected", String(j === current));
+                w.tabIndex = j === current ? 0 : -1;
+            });
+            answers.forEach((a, j) => (a.hidden = j !== current));
+            if (focus) words[current].focus();
+            moveMark();
+
+            // Keep the question in the address (/me#where; plain /me for the first), so a reload or a shared
+            // link opens on it. Replaced rather than added, so Back still leaves the page in one go.
+            // history.state is kept: the page transitions keep their own notes in it.
+            const word = words[current].id.slice("q-".length);
+            const url = current === 0 ? location.pathname + location.search : `#${word}`;
+            history.replaceState(history.state, "", url);
+
+            if (!slide.matches) return;
+            movers.forEach((el, j) => {
+                // A slide still running would throw the measurement off; start from where it is now instead.
+                el.getAnimations().forEach((a) => a.id === "slide" && a.cancel());
+                const was = before[j];
+                const now = el.getBoundingClientRect();
+                // Line up the old and new boxes at the transform origin (50% 75%), scaling by height.
+                const s = was.height / now.height;
+                const dx = was.left + was.width * 0.5 - (now.left + now.width * 0.5);
+                const dy = was.top + was.height * 0.75 - (now.top + now.height * 0.75);
+                if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(s - 1) < 0.01) return;
+                el.animate([{ transform: `translate(${dx}px, ${dy}px) scale(${s})` }, { transform: "none" }], {
+                    id: "slide",
+                    duration: 220,
+                    easing: "cubic-bezier(0.23, 1, 0.32, 1)", // ease-out-quint: moves the moment you click
+                });
+            });
+        };
+
+        words.forEach((w, i) => w.addEventListener("click", () => pick(i)));
+        root.querySelector(".prev")!.addEventListener("click", () => pick(current - 1));
+        root.querySelector(".next")!.addEventListener("click", () => pick(current + 1));
+
+        // Left/right anywhere on the page steps through the questions (this page has no screens beside it).
+        const onKey = (e: KeyboardEvent) => {
+            if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey) return;
+            if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+            e.preventDefault();
+            pick(current + (e.key === "ArrowLeft" ? -1 : 1), root.contains(document.activeElement));
+        };
+        document.addEventListener("keydown", onKey);
+
+        // Someone changing the #question in the address by hand.
+        const onHash = () => {
+            const i = words.findIndex((w) => w.id === `q-${location.hash.slice(1)}`);
+            if (i !== current) pick(Math.max(i, 0));
+        };
+        addEventListener("hashchange", onHash);
+
+        document.addEventListener(
+            "astro:before-swap",
+            () => {
+                document.removeEventListener("keydown", onKey);
+                removeEventListener("hashchange", onHash);
+                stopNames();
+                watchName.disconnect();
+                removeEventListener("resize", placeMark);
+            },
+            { once: true },
+        );
+    });
+</script>
+
+<style>
+    /* Laid out like the design (a 1280×720 screen), scaled to fit: --k is one design pixel. */
+    main {
+        --k: min(100vw / 1280, 100dvh / 720);
+        --ease-out: cubic-bezier(0.23, 1, 0.32, 1); /* ease-out-quint */
+        /* Overshoots a touch: for the playful hover on the picture. */
+        --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+        /* Exactly one screen: the page itself never scrolls. A long answer scrolls in its own box (.answer). */
+        height: 100dvh;
+        overflow: hidden;
+        display: grid;
+        place-items: center;
+    }
+
+    .about {
+        width: calc(1280 * var(--k));
+        height: calc(720 * var(--k));
+        display: grid;
+        grid-template-columns: calc(480 * var(--k)) calc(675 * var(--k));
+        grid-template-rows: minmax(0, 1fr);
+        align-items: start;
+        column-gap: calc(15.5 * var(--k));
+        padding: calc(119.5 * var(--k)) 0 calc(40 * var(--k)) calc(59.5 * var(--k));
+    }
+
+    /* The badge's box is the whole name ring, 480 design px across; the picture is the 301px circle in the middle. */
+    .badge {
+        position: relative;
+        aspect-ratio: 1;
+        /* Comes in just behind the page sliding up. */
+        animation: pop-in 400ms var(--ease-out) 100ms both;
+    }
+
+    .pfp {
+        position: absolute;
+        top: calc(89.5 / 480 * 100%);
+        left: calc(89.5 / 480 * 100%);
+        width: calc(301 / 480 * 100%);
+        height: calc(301 / 480 * 100%);
+        perspective: calc(1000 * var(--k));
+        /* Bobs like the letters of the home logo; scale and rotate are left free for the hover. */
+        animation: bob 4s ease-in-out infinite;
+        transition: scale 250ms var(--ease-back), rotate 250ms var(--ease-back);
+        will-change: transform;
+    }
+
+    /* Turns over to show whichever side data-side names (set by the script as the name changes). */
+    .card {
+        width: 100%;
+        height: 100%;
+        transform-style: preserve-3d;
+        transition: transform 450ms cubic-bezier(0.645, 0.045, 0.355, 1); /* ease-in-out-cubic */
+    }
+
+    .pfp[data-side="back"] .card {
+        transform: rotateY(180deg);
+    }
+
+    .face {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border: calc(5 * var(--k)) solid var(--orange-dark);
+        border-radius: 50%;
+        backface-visibility: hidden;
+    }
+
+    .back {
+        transform: rotateY(180deg);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .pfp:hover {
+            scale: 1.04;
+            rotate: -4deg;
+        }
+    }
+
+    @keyframes bob {
+        0%, 100% { translate: 0 calc(-5 * var(--k)); }
+        50% { translate: 0 calc(5 * var(--k)); }
+    }
+
+    .name {
+        position: absolute;
+        inset: 0;
+        overflow: visible;
+        font-family: "Fredoka Variable", var(--font-body);
+        font-weight: 700;
+        font-size: 70px;
+        fill: var(--orange);
+        text-anchor: middle;
+        /* Lets the picture underneath get the hover. */
+        pointer-events: none;
+    }
+
+    /* The typing cursor: only on the curve being typed on, blinking. */
+    .caret {
+        font-weight: 400;
+        fill: var(--orange-soft);
+        opacity: 0;
+    }
+
+    .typing .caret {
+        animation: blink 1s steps(1) infinite;
+    }
+
+    @keyframes blink {
+        0%, 50% { opacity: 1; }
+    }
+
+    /* Spread out so each name covers about the same stretch of the circle as in the design. */
+    .first-name {
+        letter-spacing: 5px;
+    }
+
+    .last-name {
+        letter-spacing: 17px;
+    }
+
+    /* Starts higher than the badge (the design had it at 143), level with the header, and runs to the
+       bottom of the page; the answer takes whatever room is left under the questions. */
+    .questions {
+        align-self: stretch;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        margin-top: calc((60 - 119.5) * var(--k));
+        animation: rise 350ms var(--ease-out) 160ms both;
+    }
+
+    @keyframes pop-in {
+        from {
+            opacity: 0;
+            scale: 0.92;
+        }
+    }
+
+    @keyframes rise {
+        from {
+            opacity: 0;
+            translate: 0 calc(12 * var(--k));
+        }
+    }
+
+    .picker {
+        position: relative;
+        display: flex;
+        align-items: center;
+    }
+
+    /* Tight enough that even the widest row ("Where?" picked) stays inside the column,
+       keeping the right arrow well clear of the screen's edge. */
+    .words {
+        display: flex;
+        align-items: baseline;
+        gap: calc(10 * var(--k));
+        margin: 0 calc(8 * var(--k));
+    }
+
+    button {
+        padding: 0;
+        border: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+    }
+
+    .word {
+        font-weight: 700;
+        font-style: italic;
+        font-size: calc(34 * var(--k));
+        line-height: 1.36;
+        color: var(--orange-dark);
+        /* Grows and slides (see pick() in the script) from about where it sits on the line. */
+        transform-origin: 50% 75%;
+        transition: color 120ms ease, scale 140ms var(--ease-out);
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .word:hover {
+            color: var(--orange);
+            scale: 1.12;
+        }
+
+        /* The picked word stays put, so its floating "?" stays lined up with it. */
+        .word[aria-selected="true"]:hover {
+            scale: none;
+        }
+    }
+
+    .word:active,
+    .word[aria-selected="true"]:active {
+        scale: 0.95;
+    }
+
+    .word .mark {
+        display: none;
+    }
+
+    /* Each word is where its "?" gets measured from (see placeMark() in the script),
+       and the "?" never wraps onto a line of its own. Words sit above the floating "?",
+       so it slides along behind them. */
+    .word {
+        position: relative;
+        z-index: 1;
+        white-space: nowrap;
+    }
+
+    /* Once the script is running, the picked word's own "?" only holds its space and the floating one shows. */
+    .floating .word .mark {
+        visibility: hidden;
+    }
+
+    .floating-mark {
+        display: none;
+        position: absolute;
+        top: 0;
+        left: 0;
+        font-weight: 700;
+        font-style: italic;
+        font-size: calc(64 * var(--k));
+        line-height: 1.36;
+        color: var(--orange);
+        pointer-events: none;
+        will-change: transform;
+    }
+
+    .floating .floating-mark {
+        display: block;
+    }
+
+    .word[aria-selected="true"] {
+        font-size: calc(64 * var(--k));
+        color: var(--orange);
+    }
+
+    .word[aria-selected="true"] .first {
+        text-transform: uppercase;
+    }
+
+    .word[aria-selected="true"] .mark {
+        display: inline-block;
+    }
+
+    /* The L shape, rotated into a chevron like the screen arrows; 31px boxes in the design. */
+    .step {
+        flex-shrink: 0;
+        display: grid;
+        place-items: center;
+        width: calc(31.3 * var(--k));
+        height: calc(31.3 * var(--k));
+        color: var(--orange-dark);
+        transition: color 120ms ease, scale 120ms var(--ease-out), translate 120ms var(--ease-out);
+    }
+
+    .step svg {
+        width: 69%;
+        overflow: visible;
+        fill: currentColor;
+    }
+
+    .prev svg {
+        rotate: 45deg;
+    }
+
+    .next svg {
+        rotate: -135deg;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .step:hover {
+            color: var(--orange);
+            scale: 1.1;
+        }
+    }
+
+    /* Pressed: nudge the way it points. */
+    .prev:active {
+        scale: 0.9;
+        translate: calc(-3 * var(--k)) 0;
+    }
+
+    .next:active {
+        scale: 0.9;
+        translate: calc(3 * var(--k)) 0;
+    }
+
+    /* Fills the rest of the column and scrolls inside itself when the answer is too long for it.
+       The small padding keeps focus rings inside the box; the margin makes up for it. */
+    .answer {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: thin;
+        scrollbar-color: var(--orange-soft) transparent;
+        max-width: calc(626 * var(--k) + 16px);
+        margin: calc(15 * var(--k) - 8px) 0 0 calc(34 * var(--k) - 8px);
+        padding: 8px 8px 16px;
+        font-weight: 600;
+        font-size: max(16px, calc(24 * var(--k)));
+        line-height: 1.36;
+        /* Runs each time an answer is shown, so a new pick fades up into place. */
+        animation: rise 180ms var(--ease-out);
+    }
+
+    /* The answer's Markdown (src/content/me). It's rendered outside this page's styles, hence :global. */
+    .text > :global(*) {
+        margin: 0;
+    }
+
+    .text > :global(* + *) {
+        margin-top: 0.7em;
+    }
+
+    .text :global(ul),
+    .text :global(ol) {
+        padding-left: 1.3em;
+    }
+
+    .text :global(a) {
+        color: var(--orange-dark);
+    }
+
+    /* The badge's name, copied into the text (see WithName.astro and mirror() in the script). */
+    .text :global(.live-name) {
+        color: var(--orange);
+    }
+
+    /* While the badge is typing, so is this, with the same blinking cursor. */
+    .text :global(.live-name.typing)::after {
+        content: "|";
+        margin-left: 1px;
+        font-weight: 400;
+        color: var(--orange-soft);
+        animation: blink 1s steps(1) infinite;
+    }
+
+    /* Space between an answer's text and a timeline under it. */
+    .answer > :global(* + *) {
+        margin-top: calc(24 * var(--k));
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .badge,
+        .pfp,
+        .typing .caret,
+        .text :global(.live-name.typing)::after,
+        .questions,
+        .answer {
+            animation: none;
+        }
+
+        .pfp,
+        .card,
+        .word,
+        .step {
+            transition: none;
+        }
+    }
+
+    /* Tall screens: the design's portrait layout (720×1280), picture on top and everything centred. */
+    @media (max-aspect-ratio: 1/1) {
+        main {
+            --k: min(100vw / 720, 100dvh / 1280);
+            place-items: start center;
+        }
+
+        /* The full height of the screen: the picture and questions at the top, the answer's box filling the rest. */
+        .about {
+            width: calc(720 * var(--k));
+            height: 100dvh;
+            grid-template-columns: 1fr;
+            grid-template-rows: auto minmax(0, 1fr);
+            justify-items: center;
+            padding: calc(101.5 * var(--k)) 0 calc(24 * var(--k));
+        }
+
+        /* Bigger than in the design, so the picture and name fill the space down to the questions. */
+        .badge {
+            width: calc(620 * var(--k));
+        }
+
+        .questions {
+            width: 100%;
+            margin-top: 0;
+            padding-top: calc(16 * var(--k));
+            align-items: center;
+        }
+
+        /* At the design's sizes the row only just fits a phone, and any phone that draws the text a little
+           wider pushed the right arrow off the screen. A bit smaller leaves room to spare. */
+        .words {
+            gap: calc(14 * var(--k));
+            margin: 0 calc(10 * var(--k));
+        }
+
+        .word {
+            font-size: calc(30 * var(--k));
+        }
+
+        .word[aria-selected="true"],
+        .floating-mark {
+            font-size: calc(54 * var(--k));
+        }
+
+        .answer {
+            align-self: stretch;
+            max-width: none;
+            margin: calc(15 * var(--k) - 8px) calc(47 * var(--k) - 8px) 0;
+            text-align: center;
+        }
+    }
+</style>

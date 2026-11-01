@@ -8,12 +8,20 @@ import drawingCentre from "../assets/home/center.png";
 import drawingLeft from "../assets/home/left.png";
 import drawingRight from "../assets/home/right.png";
 import drawingCorner from "../assets/home/topright.png";
+// What each drawing switches to when the secrets are hidden. The corner one has none: it just disappears.
+import drawingCentreClean from "../assets/home/center-clean.png";
+import drawingLeftClean from "../assets/home/left-clean.png";
+import drawingRightClean from "../assets/home/right-clean.png";
+// The toggle's icon while the drawings are showing, and while they're switched off. Swap the files to change them.
+import secretsShownIcon from "../assets/home/secrets-shown.svg";
+import secretsHiddenIcon from "../assets/home/secrets-hidden.svg";
 
 // The line under the logo is one of these, picked at random on every visit. Pronunciations are bold.
 const taglines: { pronounced?: string; text?: string }[] = [
     { pronounced: "/ˈduːbiː/" },
     { pronounced: "doo-bee" },
     { pronounced: "dubbyy" },
+    { pronounced: "dúbí" },
     { text: "idiot at rest" },
     { text: "jack of no trades" },
     { text: "oh, this and that, nothing in particular" },
@@ -63,17 +71,31 @@ const taglines: { pronounced?: string; text?: string }[] = [
 ---
 
 <Base>
+    {/* data-drawings is "on" or "off"; the button in the corner flips it and each drawing shows its matching version. */}
+    <div class="home" data-drawings="on">
+    <script is:inline data-astro-rerun>
+        // Before the drawings are parsed, so the remembered choice never flashes the other version.
+        {
+            let state = "on";
+            try { state = localStorage.getItem("drawings") === "off" ? "off" : "on"; } catch {}
+            document.querySelector(".home").dataset.drawings = state;
+        }
+    </script>
+
     {/* Hand-drawn notes, behind everything else. The side ones follow the arrows (--arrow-* in global.css). */}
     <div class="doodles" aria-hidden="true">
-        <Image class="doodle left" src={drawingLeft} alt="" loading="eager" />
-        <Image class="doodle right" src={drawingRight} alt="" loading="eager" />
-        <Image class="doodle corner" src={drawingCorner} alt="" loading="eager" />
+        <Image class="doodle left on" src={drawingLeft} alt="" loading="eager" />
+        <Image class="doodle left off" src={drawingLeftClean} alt="" loading="eager" />
+        <Image class="doodle right on" src={drawingRight} alt="" loading="eager" />
+        <Image class="doodle right off" src={drawingRightClean} alt="" loading="eager" />
+        <Image class="doodle corner on" src={drawingCorner} alt="" loading="eager" />
     </div>
 
     <main>
         <div class="hero">
             {/* Pointers to the projects (d) and about (u) pages, the colour and the y's outline: drawn around the logo. */}
-            <Image class="doodle centre" src={drawingCentre} alt="" loading="eager" />
+            <Image class="doodle centre on" src={drawingCentre} alt="" loading="eager" />
+            <Image class="doodle centre off" src={drawingCentreClean} alt="" loading="eager" />
             <h1><Logo /></h1>
             <p class="tagline">
                 {
@@ -108,9 +130,66 @@ const taglines: { pronounced?: string; text?: string }[] = [
         </div>
     </main>
     <ScreenArrows />
+
+    <button class="drawings-toggle" type="button" aria-pressed="false">
+        <Image class="icon on" src={secretsShownIcon} alt="" loading="eager" />
+        <Image class="icon off" src={secretsHiddenIcon} alt="" loading="eager" />
+        {/* Not shown, but still read out by screen readers. */}
+        <span class="label visually-hidden">hide secrets</span>
+    </button>
+    <script is:inline data-astro-rerun>
+        {
+            const home = document.querySelector(".home");
+            const button = home.querySelector(".drawings-toggle");
+            const show = (state) => {
+                home.dataset.drawings = state;
+                // Pressed means the secrets are hidden.
+                button.setAttribute("aria-pressed", String(state === "off"));
+                button.querySelector(".label").textContent = state === "on" ? "hide secrets" : "show secrets";
+            };
+            show(home.dataset.drawings);
+            button.addEventListener("click", () => {
+                const state = home.dataset.drawings === "on" ? "off" : "on";
+                show(state);
+                try { localStorage.setItem("drawings", state); } catch {}
+            });
+        }
+    </script>
+    </div>
 </Base>
 
 <style>
+    /* Only there to carry data-drawings; it doesn't take part in the layout. */
+    .home {
+        display: contents;
+    }
+
+    .home[data-drawings="on"] :is(.doodle, .icon).off,
+    .home[data-drawings="off"] :is(.doodle, .icon).on {
+        display: none;
+    }
+
+    /* Top left, opposite the corner drawing. */
+    .drawings-toggle {
+        position: fixed;
+        left: clamp(8px, 1.354vw, 30px);
+        top: clamp(8px, 1.354vw, 30px);
+        padding: 6px;
+        border: none;
+        background: none;
+        cursor: pointer;
+        transition: scale 0.2s;
+    }
+
+    .drawings-toggle .icon {
+        width: 36px;
+        height: 36px;
+    }
+
+    .drawings-toggle:hover {
+        scale: 1.08;
+    }
+
     main {
         min-height: 100dvh;
         display: grid;

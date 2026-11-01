@@ -1,0 +1,223 @@
+---
+// A vertical timeline of the events in data/timeline.ts, sorted by date. Each year starts with a year card,
+// each event has a date card, and a dashed line runs down through all of them.
+import { Image } from "astro:assets";
+import { events, newestFirst } from "../data/timeline";
+import { caption } from "../utils/caption";
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// A date's known parts. Anything left out, left empty or written "??" is unknown:
+// "2019-??-??" and "2019" both mean "some time in 2019", "2019-11-??" means "some time in November 2019".
+const parts = (date: string) => {
+    const [year, month, day] = date.split("-").map((part) => (/^\d+$/.test(part) ? Number(part) : 0));
+    return { year, month: month ?? 0, day: month ? (day ?? 0) : 0 };
+};
+
+// "2026-10-26" → "26 Oct", "2026-10-??" → "Oct", "2026-??-??" → no date card.
+const label = (date: string) => {
+    const { month, day } = parts(date);
+    if (!month) return "";
+    return day ? `${day} ${MONTHS[month - 1]}` : MONTHS[month - 1];
+};
+
+// The known parts as a proper date for <time>: "2019-11-??" → "2019-11".
+const datetime = (date: string) => {
+    const { year, month, day } = parts(date);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return [year, month && pad(month), month && day && pad(day)].filter(Boolean).join("-");
+};
+
+// Unknown parts count as the start of the year or month, so an event known only by its year sorts
+// to the start of that year (the bottom of it, newest first).
+const order = (date: string) => {
+    const { year, month, day } = parts(date);
+    return year * 10000 + month * 100 + day;
+};
+const sorted = [...events].sort((a, b) => (order(a.date) - order(b.date)) * (newestFirst ? -1 : 1));
+
+// The rows in order: a year card whenever the year changes, then each event.
+type Row = { kind: "year"; year: string } | { kind: "event"; event: (typeof events)[number]; label: string };
+const rows: Row[] = [];
+for (const event of sorted) {
+    const year = String(parts(event.date).year);
+    const last = rows.findLast((r) => r.kind === "year");
+    if (!last || last.year !== year) rows.push({ kind: "year", year });
+    rows.push({ kind: "event", event, label: label(event.date) });
+}
+---
+
+<ol class="timeline">
+    {
+        rows.map((row) =>
+            row.kind === "year" ? (
+                <li class="year">
+                    <span class="pill">{row.year}</span>
+                </li>
+            ) : (
+                <li class="event">
+                    <div class="rail">
+                        {row.label ? (
+                            <time class="pill" datetime={datetime(row.event.date)}>
+                                {row.label}
+                            </time>
+                        ) : (
+                            <span class="dot" />
+                        )}
+                    </div>
+                    <div class="content">
+                        <h3>{row.event.title}</h3>
+                        <p set:html={caption(row.event.caption)} />
+                        {row.event.image &&
+                            (row.event.image.format === "gif" ? (
+                                // GIFs are left as they are so they keep moving.
+                                <img
+                                    src={row.event.image.src}
+                                    width={row.event.image.width}
+                                    height={row.event.image.height}
+                                    alt={row.event.alt ?? ""}
+                                    loading="lazy"
+                                />
+                            ) : (
+                                <Image src={row.event.image} alt={row.event.alt ?? ""} width={720} loading="lazy" />
+                            ))}
+                    </div>
+                </li>
+            ),
+        )
+    }
+</ol>
+
+<style>
+    .timeline {
+        /* The column the cards sit in; the dashed line runs down its middle. */
+        --rail: 92px;
+        --line: 3px;
+        position: relative;
+        display: grid;
+        gap: 22px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        text-align: left;
+    }
+
+    /* From the middle of the first card down to the end. */
+    .timeline::before {
+        content: "";
+        position: absolute;
+        top: 16px;
+        bottom: 0;
+        left: calc(var(--rail) / 2 - var(--line) / 2);
+        width: var(--line);
+        background: linear-gradient(var(--orange-soft) 55%, transparent 0) 0 0 / var(--line) 14px;
+    }
+
+    .year,
+    .event {
+        position: relative;
+        display: grid;
+        grid-template-columns: var(--rail) 1fr;
+        column-gap: 16px;
+        align-items: start;
+    }
+
+    /* White pills with orange text, fully rounded at both ends, sitting on the line. */
+    .pill {
+        justify-self: center;
+        padding: 5px 14px;
+        border-radius: 999px;
+        background: #fff;
+        color: var(--orange);
+        font-weight: 800;
+        font-size: 15px;
+        line-height: 1.3;
+        white-space: nowrap;
+    }
+
+    /* Year cards are outlined, so they stand out from the date cards as the start of each year. */
+    .year .pill {
+        grid-column: 1;
+        padding: 6px 18px;
+        border: 2px solid var(--orange);
+        font-size: 20px;
+    }
+
+    .rail {
+        display: grid;
+        justify-items: center;
+        /* Lines the date card up with the title. */
+        padding-top: 2px;
+    }
+
+    /* Events with only a year have a small mark on the line instead of a date. */
+    .dot {
+        width: 14px;
+        height: 14px;
+        margin-top: 8px;
+        border: 3px solid var(--orange);
+        border-radius: 50%;
+        background: #fff;
+    }
+
+    h3 {
+        margin: 0;
+        font-size: 20px;
+        font-weight: 800;
+        line-height: 1.3;
+        color: var(--orange-dark);
+    }
+
+    p {
+        margin: 4px 0 0;
+        font-size: 16px;
+        font-weight: 500;
+        line-height: 1.4;
+    }
+
+    /* Links written into a caption (utils/caption.ts). */
+    p :global(a) {
+        color: var(--orange-dark);
+    }
+
+    .content :global(img) {
+        display: block;
+        width: 100%;
+        max-width: 360px;
+        height: auto;
+        margin-top: 12px;
+        border: 3px solid var(--orange-dark);
+        border-radius: 16px;
+    }
+
+    /* Narrow screens: a slimmer card column, so the words get the room. */
+    @media (max-width: 600px) {
+        .timeline {
+            --rail: 74px;
+            gap: 18px;
+        }
+
+        .year,
+        .event {
+            column-gap: 12px;
+        }
+
+        .pill {
+            padding: 4px 10px;
+            font-size: 13px;
+        }
+
+        .year .pill {
+            padding: 5px 14px;
+            font-size: 17px;
+        }
+
+        h3 {
+            font-size: 17px;
+        }
+
+        p {
+            font-size: 15px;
+        }
+    }
+</style>

@@ -1,0 +1,212 @@
+---
+// A world map with a pin for each place in data/places.ts. Picking a pin shows that place's card under the map.
+// The map is drawn when the site is built (world outlines from world-atlas), so the page just gets a picture.
+import { Image } from "astro:assets";
+import { geoMercator, geoPath } from "d3-geo";
+import { merge, mesh } from "topojson-client";
+import type { GeometryCollection, MultiPolygon, Polygon, Topology } from "topojson-specification";
+import world from "world-atlas/countries-110m.json";
+import { places } from "../data/places";
+import { caption } from "../utils/caption";
+
+// Every country but Antarctica, which is below the bottom of the map anyway.
+type Country = Polygon<{ name: string }> | MultiPolygon<{ name: string }>;
+const topology = world as unknown as Topology;
+const all = topology.objects.countries as GeometryCollection<{ name: string }>;
+const kept = (all.geometries as Country[]).filter((country) => country.properties?.name !== "Antarctica");
+const countries: GeometryCollection<{ name: string }> = { ...all, geometries: kept };
+const land = merge(topology, kept);
+const borders = mesh(topology, countries, (a, b) => a !== b);
+
+// Mercator, 960 wide, cut off at these latitudes: it stretches things more and more towards the poles,
+// so the far north and south would make the map very tall. 84°N is just past the most northern land
+// (the tip of Greenland). Places beyond them fall off the map.
+const WIDTH = 960;
+const NORTH = 84;
+const SOUTH = -56;
+const projection = geoMercator()
+    .scale(WIDTH / (2 * Math.PI))
+    .translate([WIDTH / 2, 0]);
+const top = projection([0, NORTH])![1];
+const height = Math.ceil(projection([0, SOUTH])![1] - top);
+projection.translate([WIDTH / 2, -top]).clipExtent([
+    [0, 0],
+    [WIDTH, height],
+]);
+const path = geoPath(projection).digits(1);
+
+// Each pin's spot, as a percentage of the map so it stays put as the map scales.
+const pins = places.map((place) => {
+    const [x, y] = projection([place.coords[1], place.coords[0]]) ?? [0, 0];
+    return { name: place.name, left: (x / WIDTH) * 100, top: (y / height) * 100 };
+});
+---
+
+<div class="world-map">
+    <div class="map" style={`aspect-ratio: ${WIDTH} / ${height}`}>
+        <svg viewBox={`0 0 ${WIDTH} ${height}`} aria-hidden="true">
+            <path class="land" d={path(land)} />
+            <path class="borders" d={path(borders)} />
+        </svg>
+        {
+            pins.map((pin, i) => (
+                <button
+                    class="pin"
+                    type="button"
+                    style={`left: ${pin.left.toFixed(2)}%; top: ${pin.top.toFixed(2)}%`}
+                    aria-label={pin.name}
+                    aria-pressed={i === 0 ? "true" : "false"}
+                />
+            ))
+        }
+    </div>
+    {
+        places.map((place, i) => (
+            <div class="place" hidden={i !== 0}>
+                <span class="pill">{place.name}</span>
+                <p set:html={caption(place.caption)} />
+                {place.image && <Image src={place.image} alt={place.alt ?? ""} width={720} loading="lazy" />}
+            </div>
+        ))
+    }
+</div>
+
+<script>
+    // Picking a pin shows its place's card (they're in the same order).
+    document.addEventListener("astro:page-load", () => {
+        for (const map of document.querySelectorAll<HTMLElement>(".world-map")) {
+            const pins = [...map.querySelectorAll<HTMLButtonElement>(".pin")];
+            const cards = [...map.querySelectorAll<HTMLElement>(".place")];
+            pins.forEach((pin, i) =>
+                pin.addEventListener("click", () => {
+                    pins.forEach((p, j) => p.setAttribute("aria-pressed", String(j === i)));
+                    cards.forEach((card, j) => (card.hidden = j !== i));
+                }),
+            );
+        }
+    });
+</script>
+
+<style>
+    .world-map {
+        text-align: left;
+    }
+
+    .map {
+        position: relative;
+        width: 100%;
+    }
+
+    svg {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+
+    .land {
+        fill: #ffdcb8;
+    }
+
+    .borders {
+        fill: none;
+        stroke: var(--bg);
+        stroke-width: 0.8;
+        stroke-linejoin: round;
+    }
+
+    /* Orange dots with a white ring; the picked one is darker and bigger. */
+    .pin {
+        position: absolute;
+        width: 14px;
+        height: 14px;
+        padding: 0;
+        border: 3px solid #fff;
+        border-radius: 50%;
+        background: var(--orange);
+        box-shadow: 0 1px 3px rgb(26 13 0 / 0.25);
+        translate: -50% -50%;
+        cursor: pointer;
+        transition: scale 150ms cubic-bezier(0.23, 1, 0.32, 1), background-color 120ms ease;
+    }
+
+    /* A bigger area to tap than the dot itself. */
+    .pin::before {
+        content: "";
+        position: absolute;
+        inset: -12px;
+        border-radius: 50%;
+    }
+
+    .pin[aria-pressed="true"] {
+        z-index: 1;
+        background: var(--orange-dark);
+        scale: 1.35;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .pin:hover {
+            scale: 1.25;
+        }
+
+        .pin[aria-pressed="true"]:hover {
+            scale: 1.35;
+        }
+    }
+
+    .place {
+        margin-top: 16px;
+        animation: place-in 180ms cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    /* Named apart from the about page's own "rise", since animation names are shared across the page. */
+    @keyframes place-in {
+        from {
+            opacity: 0;
+            translate: 0 8px;
+        }
+    }
+
+    /* The same white, fully rounded cards as the timeline. */
+    .pill {
+        display: inline-block;
+        padding: 5px 14px;
+        border-radius: 999px;
+        background: #fff;
+        color: var(--orange);
+        font-weight: 800;
+        font-size: 17px;
+        line-height: 1.3;
+    }
+
+    p {
+        margin: 8px 0 0;
+        font-size: 16px;
+        font-weight: 500;
+        line-height: 1.4;
+    }
+
+    /* Links written into a caption (utils/caption.ts). */
+    p :global(a) {
+        color: var(--orange-dark);
+    }
+
+    .place :global(img) {
+        display: block;
+        width: 100%;
+        max-width: 360px;
+        height: auto;
+        margin-top: 12px;
+        border: 3px solid var(--orange-dark);
+        border-radius: 16px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .pin {
+            transition: none;
+        }
+
+        .place {
+            animation: none;
+        }
+    }
+</style>

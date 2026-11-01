@@ -1,10 +1,40 @@
 ---
-// Where the dark y in the logo leads. Just a black page for now.
+// Where the dark y in the logo leads: a black page that asks for a password.
+// Behind it is the start of a little virtual desktop, hidden until you log in.
 import Base from "../layouts/Base.astro";
 ---
 
 <Base title="y">
-    <main></main>
+    <div class="desktop" hidden>
+        <svg class="wallpaper" viewBox="-32 -16 64 32" fill="#eee" aria-hidden="true">
+            <ellipse id="right-eye" cx="22.4" cy="-6.4" rx="9.6" ry="9.6"></ellipse>
+            <ellipse id="left-eye" cx="-22.4" cy="0" rx="9.6" ry="9.6"></ellipse>
+            <path id="mouth" d="m -5.3,1.58 -3.67,5.24 13.1,9.18 9.18,-13.11 -5.24,-3.67 -5.51,7.87 z"></path>
+        </svg>
+    </div>
+
+    <main>
+        <form class="lock" autocomplete="off">
+            <label for="password">Enter Password</label>
+            <div class="row">
+                <input
+                    id="password"
+                    type="password"
+                    placeholder="•••••••••"
+                    autocapitalize="off"
+                    autocorrect="off"
+                    spellcheck="false"
+                    autofocus
+                />
+                <button type="submit" aria-label="Enter">
+                    <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path d="M20 5v7a3 3 0 0 1-3 3H5m5-5-5 5 5 5" />
+                    </svg>
+                </button>
+            </div>
+            <p class="message" role="status"></p>
+        </form>
+    </main>
 </Base>
 
 <style>
@@ -13,7 +43,226 @@ import Base from "../layouts/Base.astro";
         background: #000;
     }
 
+    /* Fills the screen behind the password box; fades in once the box is gone. */
+    .desktop {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        transition: opacity 0.6s;
+    }
+
+    .desktop[hidden] {
+        display: none;
+    }
+
+    .desktop.fading {
+        opacity: 0;
+    }
+
+    .wallpaper {
+        width: min(280px, 60vw);
+        pointer-events: none;
+    }
+
     main {
+        position: relative;
         min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: 24px 16px;
+        color: #fff;
+        font-family: ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace;
+    }
+
+    .lock {
+        width: min(360px, 100%);
+        display: grid;
+        /* minmax(0, …): don't let the input's built-in width push the row past the padding. */
+        grid-template-columns: minmax(0, 1fr);
+        gap: 14px;
+        padding: 22px 22px 14px;
+        border: 1px solid #fff;
+    }
+
+    label {
+        font-size: 12px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #999;
+    }
+
+    .row {
+        display: flex;
+        gap: 8px;
+    }
+
+    input,
+    button {
+        border: 1px solid #444;
+        border-radius: 0;
+        background: transparent;
+        color: #fff;
+        font: inherit;
+        font-size: 16px;
+        outline: none;
+    }
+
+    input {
+        flex: 1;
+        min-width: 0;
+        padding: 10px 12px;
+        caret-color: #fff;
+        letter-spacing: 0.35em;
+    }
+
+    input::placeholder {
+        color: #444;
+    }
+
+    input:focus {
+        border-color: #fff;
+    }
+
+    button {
+        flex: none;
+        display: grid;
+        place-items: center;
+        aspect-ratio: 1;
+        padding: 0;
+        border-color: #fff;
+        cursor: pointer;
+    }
+
+    button svg {
+        width: 20px;
+        height: 20px;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    button:hover,
+    button:focus-visible {
+        background: #fff;
+        color: #000;
+    }
+
+    .message {
+        margin: 0;
+        min-height: 1.4em;
+        font-size: 13px;
+        font-style: italic;
+    }
+
+    .lock.wrong {
+        animation: shake 0.4s;
+    }
+
+    .lock.wrong input {
+        border-color: #f44;
+    }
+
+    .lock.wrong .message {
+        color: #f44;
+    }
+
+    .lock.open label,
+    .lock.open .message {
+        color: #3d3;
+    }
+
+    .lock.open input,
+    .lock.open button {
+        border-color: #3d3;
+        color: #3d3;
+        background: transparent;
+        cursor: default;
+    }
+
+    @keyframes shake {
+        20%,
+        60% {
+            translate: -8px 0;
+        }
+        40%,
+        80% {
+            translate: 8px 0;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .lock.wrong {
+            animation: none;
+        }
     }
 </style>
+
+<script>
+    // SHA-256 of the password, so the password itself isn't sitting in the page source.
+    // It's still checked in the browser, so this keeps out the curious, not the determined.
+    const PASSWORD_HASH = "840cc0b9c0222462bb65eb7423c4355318ffa3e433dac524a441978b8a8ca3a5";
+
+    const sha256 = async (text: string) => {
+        const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+        return [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, "0")).join("");
+    };
+
+    document.addEventListener("astro:page-load", () => {
+        const form = document.querySelector<HTMLFormElement>(".lock");
+        if (!form) return;
+        const input = form.querySelector("input")!;
+        const button = form.querySelector("button")!;
+        const message = form.querySelector<HTMLElement>(".message")!;
+        const desktop = document.querySelector<HTMLElement>(".desktop")!;
+
+        // Unhide it at opacity 0, make the browser take that in, then go to full opacity so it fades in.
+        const showDesktop = () => {
+            desktop.classList.add("fading");
+            desktop.hidden = false;
+            void desktop.offsetWidth;
+            desktop.classList.remove("fading");
+        };
+
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            if (!input.value || form.classList.contains("open")) return;
+
+            // Case doesn't matter: "Sturluson" works as well as "sturluson".
+            if ((await sha256(input.value.toLowerCase())) === PASSWORD_HASH) {
+                input.disabled = button.disabled = true;
+                form.classList.remove("wrong");
+                form.classList.add("open");
+                // "logging in" -> "." -> ".." -> "...", then the box just vanishes before a 4th dot.
+                const STEP = 150;
+                for (let dots = 0; dots <= 3; dots++) {
+                    setTimeout(() => (message.textContent = "logging in" + ".".repeat(dots)), dots * STEP);
+                }
+                // "logging in..." hangs on a little longer than the other steps.
+                setTimeout(() => {
+                    form.remove();
+                    // A beat of empty black screen before the desktop comes up.
+                    setTimeout(showDesktop, 500);
+                }, 3 * STEP + 300);
+                return;
+            }
+
+            form.classList.remove("wrong");
+            void form.offsetWidth; // restart the shake
+            form.classList.add("wrong");
+            message.textContent = "incorrect";
+            input.value = "";
+            input.focus();
+        });
+
+        // Typing again clears the "incorrect".
+        input.addEventListener("input", () => {
+            form.classList.remove("wrong");
+            message.textContent = "";
+        });
+
+        input.focus();
+    });
+</script>

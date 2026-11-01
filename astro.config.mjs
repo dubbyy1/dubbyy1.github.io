@@ -3,6 +3,8 @@ import { defineConfig } from 'astro/config';
 
 import svelte from '@astrojs/svelte';
 import cloudflare from '@astrojs/cloudflare';
+import { satteri } from '@astrojs/markdown-satteri';
+import externalLinks from './src/plugins/external-links.mjs';
 
 // https://astro.build/config
 export default defineConfig({
@@ -18,5 +20,9 @@ export default defineConfig({
   prefetch: {
     prefetchAll: true,
     defaultStrategy: 'viewport',
+  },
+  // Links to other websites in Markdown (about page answers, project write-ups) open in a new tab.
+  markdown: {
+    processor: satteri({ hastPlugins: [externalLinks] }),
   },
 });
