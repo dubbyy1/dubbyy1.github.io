@@ -14,26 +14,112 @@ interface Props {
 // Bright but soft red, green and blue for the blocks.
 const fills = { red: "#ff7b7b", green: "#6fe07c", blue: "#6db5ff" };
 
+// How rounded the corners of rectangles and triangles are, in design px.
+// scripts/project-pile.ts rounds the physics outlines by the same amount (it reads --corner).
+const CORNER = 8;
+
+// Hand-drawn outlines, drawn over each block: design/shape-templates/<shape name>-outline.png, and
+// <shape name>-highlight.png for highlighted projects (which otherwise get the yellow line below).
+// They're the shape templates drawn over, so the same size: the shape plus SPRITE_MARGIN design px
+// of space on every side, at SPRITE_SCALE image px per design px. A shape with no drawing has no outline.
+const SPRITE_MARGIN = 16;
+const SPRITE_SCALE = 2.5;
+const sprites = import.meta.glob<{ default: ImageMetadata }>("../../design/shape-templates/*-{outline,highlight}.png", {
+    eager: true,
+});
+const sprite = (name: string | undefined, kind: "outline" | "highlight") =>
+    name ? sprites[`../../design/shape-templates/${name}-${kind}.png`]?.default : undefined;
+
+// Highlighted projects also get sparkles all the way round, placed by sparkles() below. Each one is a
+// random pick from design/sparkles/*.png (as many as you like). Draw them pointing straight up, with the
+// bottom of the image the end nearest the shape, at SPRITE_SCALE image px per design px like the outlines.
+const SPARKLE_SPACING = 14; // design px between sparkles, going round the edge
+const SPARKLE_GAP = 6; // how far outside the edge they start, in design px
+const sparkleImages = Object.values(
+    import.meta.glob<{ default: ImageMetadata }>("../../design/sparkles/*.png", { eager: true }),
+).map(({ default: img }) => ({ src: img.src, w: img.width / SPRITE_SCALE, h: img.height / SPRITE_SCALE }));
+
+type Point = [number, number];
+
+// A convex outline with every corner rounded into a circular arc of radius `r` (smaller where the
+// sides are too short for it). Gives the SVG path, and the same outline as a list of points for the
+// physics engine, with a few points along each curve.
+function roundCorners(pts: Point[], r: number) {
+    const n = pts.length;
+    const unit = ([x, y]: Point): Point => {
+        const l = Math.hypot(x, y);
+        return [x / l, y / l];
+    };
+    const corners = pts.map((v, i) => {
+        const prev = pts[(i + n - 1) % n];
+        const next = pts[(i + 1) % n];
+        const u1 = unit([prev[0] - v[0], prev[1] - v[1]]);
+        const u2 = unit([next[0] - v[0], next[1] - v[1]]);
+        const half = Math.acos(Math.min(1, Math.max(-1, u1[0] * u2[0] + u1[1] * u2[1]))) / 2;
+        // How far along each side the curve starts; the radius follows from it.
+        const d = Math.min(r / Math.tan(half), Math.hypot(prev[0] - v[0], prev[1] - v[1]) / 2, Math.hypot(next[0] - v[0], next[1] - v[1]) / 2);
+        const radius = d * Math.tan(half);
+        const mid = unit([u1[0] + u2[0], u1[1] + u2[1]]);
+        const centreDist = radius / Math.sin(half);
+        return {
+            a: [v[0] + u1[0] * d, v[1] + u1[1] * d] as Point,
+            b: [v[0] + u2[0] * d, v[1] + u2[1] * d] as Point,
+            c: [v[0] + mid[0] * centreDist, v[1] + mid[1] * centreDist] as Point,
+            radius,
+        };
+    });
+    // Which way round the outline goes, so the arcs bend the right way.
+    const turn = pts.reduce((sum, [x1, y1], i) => {
+        const [x2, y2] = pts[(i + 1) % n];
+        return sum + (x1 * y2 - x2 * y1);
+    }, 0);
+    const sweep = turn > 0 ? 1 : 0;
+    const f = (p: Point) => `${+p[0].toFixed(2)} ${+p[1].toFixed(2)}`;
+    let path = `M ${f(corners[0].b)}`;
+    for (let i = 1; i <= n; i++) {
+        const k = corners[i % n];
+        path += ` L ${f(k.a)} A ${+k.radius.toFixed(2)} ${+k.radius.toFixed(2)} 0 0 ${sweep} ${f(k.b)}`;
+    }
+    path += " Z";
+
+    const hull: Point[] = [];
+    for (const k of corners) {
+        let from = Math.atan2(k.a[1] - k.c[1], k.a[0] - k.c[0]);
+        let to = Math.atan2(k.b[1] - k.c[1], k.b[0] - k.c[0]);
+        let delta = to - from;
+        if (delta > Math.PI) delta -= 2 * Math.PI;
+        if (delta < -Math.PI) delta += 2 * Math.PI;
+        for (let s = 0; s <= 4; s++) {
+            const angle = from + (delta * s) / 4;
+            hull.push([+(k.c[0] + k.radius * Math.cos(angle)).toFixed(2), +(k.c[1] + k.radius * Math.sin(angle)).toFixed(2)]);
+        }
+    }
+    return { path, hull };
+}
+
 // Block outline in design px (1280-wide screen), with its size and balance point (centroid),
 // which is where the physics engine holds and spins it.
 function geometry(block: CollectionEntry<"projects">["data"]["block"]) {
     if (block.shape === "rect") {
         const { width: w, height: h } = block;
-        return { w, h, cx: w / 2, cy: h / 2, outline: `<rect width="${w}" height="${h}" rx="5" />` };
+        const edge = roundCorners([[0, 0], [w, 0], [w, h], [0, h]], CORNER).hull;
+        return { w, h, cx: w / 2, cy: h / 2, edge, outline: `<rect width="${w}" height="${h}" rx="${CORNER}" />` };
     }
     if (block.shape === "circle") {
         const r = block.size / 2;
-        return { w: block.size, h: block.size, cx: r, cy: r, outline: `<circle cx="${r}" cy="${r}" r="${r}" />` };
+        const edge = Array.from({ length: 72 }, (_, i): Point => [r + r * Math.cos((i / 72) * 2 * Math.PI), r + r * Math.sin((i / 72) * 2 * Math.PI)]);
+        return { w: block.size, h: block.size, cx: r, cy: r, edge, outline: `<circle cx="${r}" cy="${r}" r="${r}" />` };
     }
     const minX = Math.min(...block.points.map((p) => p[0]));
     const minY = Math.min(...block.points.map((p) => p[1]));
-    const pts = block.points.map(([x, y]) => [x - minX, y - minY]);
+    const pts = block.points.map(([x, y]) => [x - minX, y - minY] as Point);
     const w = Math.max(...pts.map((p) => p[0]));
     const h = Math.max(...pts.map((p) => p[1]));
-    // Area-weighted centroid, the same point Matter.js uses as the body's position.
+    const { path, hull } = roundCorners(pts, CORNER);
+    // Area-weighted centroid of the rounded outline, the same point Matter.js uses as the body's position.
     let a = 0, cx = 0, cy = 0;
-    pts.forEach(([x1, y1], i) => {
-        const [x2, y2] = pts[(i + 1) % pts.length];
+    hull.forEach(([x1, y1], i) => {
+        const [x2, y2] = hull[(i + 1) % hull.length];
         const cross = x1 * y2 - x2 * y1;
         a += cross;
         cx += (x1 + x2) * cross;
@@ -42,8 +128,46 @@ function geometry(block: CollectionEntry<"projects">["data"]["block"]) {
     a /= 2;
     cx /= 6 * a;
     cy /= 6 * a;
-    const list = pts.map((p) => p.join(",")).join(" ");
-    return { w, h, cx, cy, points: pts, outline: `<polygon points="${list}" stroke-linejoin="round" />` };
+    return { w, h, cx, cy, points: pts, hull, edge: hull, outline: `<path d="${path}" />` };
+}
+
+// Sparkles evenly spaced round a block's edge (a list of points going round it), each pointing straight
+// out from it, with a little randomness in where, which drawing, how big and how tilted.
+// Seeded by the project, so they're the same every time the page loads.
+function sparkles(edge: Point[], [cx, cy]: Point, seed: string) {
+    if (!sparkleImages.length) return [];
+    let state = [...seed].reduce((h, c) => Math.imul(h ^ c.charCodeAt(0), 16777619), 2166136261);
+    const random = () => {
+        state = (state + 0x6d2b79f5) | 0;
+        let t = Math.imul(state ^ (state >>> 15), 1 | state);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+
+    const sides = edge.map((a, i) => {
+        const b = edge[(i + 1) % edge.length];
+        return { a, b, length: Math.hypot(b[0] - a[0], b[1] - a[1]) };
+    });
+    const total = sides.reduce((sum, s) => sum + s.length, 0);
+    const count = Math.max(3, Math.round(total / SPARKLE_SPACING));
+
+    return Array.from({ length: count }, (_, k) => {
+        // How far round the edge this one goes, then which side that lands on.
+        let along = (((k + (random() - 0.5) * 0.4) / count) * total + total) % total;
+        const side = sides.find((s) => (along -= s.length) <= 0) ?? sides[sides.length - 1];
+        const t = 1 + along / side.length;
+        const [ax, ay] = side.a;
+        const [bx, by] = side.b;
+        const [x, y] = [ax + (bx - ax) * t, ay + (by - ay) * t];
+        // Straight out: at right angles to the side, whichever way is away from the middle.
+        let [nx, ny] = [(by - ay) / side.length, -(bx - ax) / side.length];
+        if (nx * (x - cx) + ny * (y - cy) < 0) [nx, ny] = [-nx, -ny];
+        const img = sparkleImages[Math.floor(random() * sparkleImages.length)];
+        const angle = (Math.atan2(ny, nx) * 180) / Math.PI + 90 + (random() - 0.5) * 20;
+        const scale = 0.8 + random() * 0.35;
+        const r = (n: number) => +n.toFixed(2);
+        return { img, transform: `translate(${r(x + nx * SPARKLE_GAP)} ${r(y + ny * SPARKLE_GAP)}) rotate(${r(angle)}) scale(${r(scale)})` };
+    });
 }
 
 const blocks = await Promise.all(
@@ -58,35 +182,40 @@ const blocks = await Promise.all(
               ? img.src
               : // Wide enough to cover the block once cropped to its shape, at 2× for sharp screens.
                 (await getImage({ src: img, width: Math.round(Math.max(g.w, (g.h * img.width) / img.height) * 2) })).src;
-        return { project, g, image, clipId: `block-clip-${i}` };
+        const highlighted = data.block.highlight;
+        // A highlighted project uses its shape's highlight drawing if there is one, else the plain outline.
+        const highlightSprite = highlighted ? sprite(data.block.name, "highlight") : undefined;
+        const drawing = highlightSprite ?? sprite(data.block.name, "outline");
+        const outline = drawing && {
+            src: (await getImage({ src: drawing, format: "webp" })).src,
+            width: drawing.width / SPRITE_SCALE,
+            height: drawing.height / SPRITE_SCALE,
+        };
+        const sparks = highlighted ? sparkles(g.edge, [g.cx, g.cy], project.id) : [];
+        return { project, g, image, outline, sparks, ring: highlighted && !highlightSprite, clipId: `block-clip-${i}` };
     }),
 );
 ---
 
 <div class="pile">
     {
-        blocks.map(({ project, g, image, clipId }) => {
+        blocks.map(({ project, g, image, outline, sparks, ring, clipId }) => {
             const { block } = project.data;
-            const shapeClip =
-                block.shape === "circle"
-                    ? "circle(50%)"
-                    : block.shape === "polygon"
-                      ? `polygon(${g.points!.map(([x, y]) => `${(x / g.w) * 100}% ${(y / g.h) * 100}%`).join(", ")})`
-                      : "inset(0 round 5px)";
             return (
                 <a
-                    class="block"
+                    class:list={["block", { highlight: block.highlight }]}
                     href={`/projects/${project.id}`}
                     aria-label={project.data.title}
-                    style={`--w: ${g.w}; --h: ${g.h}; --cx: ${g.cx}; --cy: ${g.cy}; --label: ${block.labelSize}; --tilt: ${block.labelAngle}deg; clip-path: ${shapeClip};`}
+                    style={`--w: ${g.w}; --h: ${g.h}; --cx: ${g.cx}; --cy: ${g.cy}; --corner: ${CORNER}; --label: ${block.labelSize}; --tilt: ${block.labelAngle}deg;`}
                     data-shape={block.shape}
                     data-fill={fills[block.colour]}
                     data-points={g.points && JSON.stringify(g.points)}
+                    data-hull={g.hull && JSON.stringify(g.hull)}
                     data-title={project.data.title}
                     data-description={project.data.description}
                     data-tags={JSON.stringify(project.data.tags.map((tag) => [tag, tagColour(tag)]))}
                 >
-                    <svg viewBox={`0 0 ${g.w} ${g.h}`} aria-hidden="true">
+                    <svg class="shape" viewBox={`0 0 ${g.w} ${g.h}`} aria-hidden="true">
                         <defs>
                             <clipPath id={clipId} set:html={g.outline} />
                         </defs>
@@ -95,7 +224,30 @@ const blocks = await Promise.all(
                             {image && (
                                 <image class="preview" href={image} width={g.w} height={g.h} preserveAspectRatio="xMidYMid slice" />
                             )}
+                            {/* A faint white wash over the picture while it shows. */}
+                            {image && <g class="veil" set:html={g.outline} />}
+                            {/* Highlighted: a solid outline along the edge, over the picture too. Only its
+                                inner half shows (it's inside the clip), so it sits just within the shape. */}
+                            {ring && <g class="ring" set:html={g.outline} />}
                         </g>
+                        {/* Outside the clip, so lines that wobble past the edge still show. */}
+                        {outline && (
+                            <image
+                                class="drawing"
+                                href={outline.src}
+                                x={-SPRITE_MARGIN}
+                                y={-SPRITE_MARGIN}
+                                width={outline.width}
+                                height={outline.height}
+                            />
+                        )}
+                        {sparks.length > 0 && (
+                            <g class="sparkles">
+                                {sparks.map(({ img, transform }) => (
+                                    <image href={img.src} x={-img.w / 2} y={-img.h} width={img.w} height={img.h} transform={transform} />
+                                ))}
+                            </g>
+                        )}
                     </svg>
                     <span class="label">{block.label ?? project.data.title}</span>
                 </a>
@@ -125,6 +277,8 @@ const blocks = await Promise.all(
     /* Without JavaScript: blocks in rows. --s scales design px to the screen. */
     .pile {
         --s: 0.6;
+        /* The outline of highlighted projects. */
+        --highlight: #ffe600;
         position: relative;
         min-height: 100dvh;
         display: flex;
@@ -136,6 +290,8 @@ const blocks = await Promise.all(
         overflow: hidden;
     }
 
+    /* Only the shape itself takes the pointer (hover, clicks), not the box around it,
+       so a click just outside a circle or triangle goes to whatever is behind. */
     .block {
         position: relative;
         flex: none;
@@ -143,13 +299,32 @@ const blocks = await Promise.all(
         height: calc(var(--h) * var(--s) * 1px);
         color: #000;
         text-decoration: none;
+        pointer-events: none;
         -webkit-tap-highlight-color: transparent;
     }
 
     .block svg {
+        display: block;
         width: 100%;
         height: 100%;
         overflow: visible;
+    }
+
+    .shape > g {
+        pointer-events: visiblePainted;
+    }
+
+    .shape > .sparkles {
+        pointer-events: none;
+    }
+
+    /* Highlighted projects: a bright yellow edge. 6 units wide, of which the inner 3 show:
+       a thin solid line in design px, scaling with the block. */
+    .ring {
+        fill: none;
+        stroke: var(--highlight);
+        stroke-width: 6;
+        pointer-events: none;
     }
 
     .label {
@@ -168,9 +343,15 @@ const blocks = await Promise.all(
     }
 
     /* A project's image shows only while its block is hovered, fading in over the colour and label. */
-    .preview {
+    .preview,
+    .veil {
         opacity: 0;
         transition: opacity 0.2s ease;
+    }
+
+    .veil {
+        fill: #fff;
+        pointer-events: none;
     }
 
     .label {
@@ -182,6 +363,10 @@ const blocks = await Promise.all(
             opacity: 1;
         }
 
+        .block:hover .veil {
+            opacity: 0.2;
+        }
+
         .block:hover:has(.preview) .label {
             opacity: 0;
         }
@@ -189,6 +374,7 @@ const blocks = await Promise.all(
 
     @media (prefers-reduced-motion: reduce) {
         .preview,
+        .veil,
         .label {
             transition: none;
         }

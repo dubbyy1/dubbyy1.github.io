@@ -1,5 +1,5 @@
 ---
-# Shows one random card from src/data/why.ts under any text written here.
-cards: true
+# cards: true shows one random card from src/data/why.ts under any text written here.
+cards: false
 ---
-Things i like!
+<p class="aside">i don't know what to put here...</p>

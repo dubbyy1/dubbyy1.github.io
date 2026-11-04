@@ -53,6 +53,9 @@ const fullTitle = title === "dubbyy" ? title : `${title} · dubbyy`;
                 const to = screenIndex(e.to.pathname);
                 slide = e.direction === "back" ? "right" : "left";
                 if (from !== -1 && to !== -1) slide = to > from ? "left" : "right";
+                // Up from a page to the one it sits in (a project back to /projects) counts as going back.
+                const up = e.to.pathname.replace(/\/$/, "");
+                if (up && e.from.pathname.startsWith(up + "/")) slide = "right";
                 // Into a section (e.g. projects) the page slides up; back out of it, down.
                 const fromSection = isSection(e.from.pathname);
                 const toSection = isSection(e.to.pathname);

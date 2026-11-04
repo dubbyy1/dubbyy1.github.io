@@ -4,8 +4,8 @@ description: This website
 date: 2026-10-26
 tags: [web, astro]
 block:
-  shape: circle
-  size: 158
+  shape: tiny-circle
   colour: green
-  labelSize: 20
+  labelSize: 15
+  highlight: true
 ---

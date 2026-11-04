@@ -1,12 +1,15 @@
 import { defineCollection } from "astro:content";
 import { glob } from "astro/loaders";
 import { z } from "astro/zod";
+import { shapeNames, shapes } from "./data/shapes";
 
 // Projects: one Markdown file each in src/content/projects (files starting with _ are ignored).
 // The front matter describes the project and the block it falls as on the projects page;
 // the body will become the project's own page.
 const colour = z.enum(["red", "blue", "green"]);
 
+// A block's shape is usually one of the named shapes in src/data/shapes.ts (shape: big-circle).
+// For a one-off, it can instead be drawn out in full with one of these.
 const block = z.discriminatedUnion("shape", [
     // Sizes are in px on a 1280-wide screen; the page scales them to fit.
     z.object({ shape: z.literal("rect"), width: z.number(), height: z.number() }),
@@ -14,6 +17,17 @@ const block = z.discriminatedUnion("shape", [
     // Any convex outline, as [x, y] corners going round the shape.
     z.object({ shape: z.literal("polygon"), points: z.array(z.tuple([z.number(), z.number()])).min(3) }),
 ]);
+
+// Swaps a named shape for its full description, before the block is checked. The shape's own settings
+// (like its labelSize) are defaults: anything the project sets itself wins, except the outline.
+// The name stays on as block.name, to find the shape's hand-drawn outline.
+const withNamedShape = (value: unknown) => {
+    if (!value || typeof value !== "object") return value;
+    const name = (value as { shape?: unknown }).shape;
+    if (typeof name !== "string" || !(name in shapes)) return value;
+    const shape = shapes[name as keyof typeof shapes];
+    return { ...shape, ...value, shape: shape.shape, name };
+};
 
 const projects = defineCollection({
     loader: glob({ pattern: "**/[^_]*.md", base: "./src/content/projects" }),
@@ -39,17 +53,24 @@ const projects = defineCollection({
                     alt: z.string().default(""),
                 })
                 .optional(),
-            block: block.and(
-                z.object({
-                    colour: colour.default("green"),
-                    // Shown over the block while it is hovered.
-                    image: image().optional(),
-                    // Text on the block; defaults to the title.
-                    label: z.string().optional(),
-                    labelSize: z.number().default(32),
-                    // Tilt of the label inside the block, in degrees.
-                    labelAngle: z.number().default(0),
-                }),
+            block: z.preprocess(
+                withNamedShape,
+                block.and(
+                    z.object({
+                        colour: colour.default("green"),
+                        // Shown over the block while it is hovered.
+                        image: image().optional(),
+                        // Text on the block; defaults to the title.
+                        label: z.string().optional(),
+                        labelSize: z.number().default(32),
+                        // Tilt of the label inside the block, in degrees.
+                        labelAngle: z.number().default(0),
+                        // Make it stand out with a bright yellow outline.
+                        highlight: z.boolean().default(false),
+                        // Which named shape it is. Filled in from shape:, so there's no need to set it.
+                        name: z.enum(shapeNames).optional(),
+                    }),
+                ),
             ),
         }),
 });

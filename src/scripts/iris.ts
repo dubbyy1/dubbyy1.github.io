@@ -44,7 +44,7 @@ function grow(block: HTMLElement, s: number): Promise<void> {
         width: `${w}px`,
         height: `${h}px`,
         background: block.dataset.fill ?? "#fff",
-        clipPath: block.style.clipPath,
+        clipPath: shapeClip(block, s),
         transform: block.style.transform,
         transformOrigin: `${cx}px ${cy}px`,
         zIndex: "20",
@@ -78,6 +78,18 @@ function grow(block: HTMLElement, s: number): Promise<void> {
         fill: "forwards",
     });
     return animation.finished.then(() => {});
+}
+
+// The block's shape as a CSS clip-path, from the outline data ProjectPile.astro puts on it,
+// with the same rounded corners.
+function shapeClip(block: HTMLElement, s: number): string {
+    const css = getComputedStyle(block);
+    if (block.dataset.shape === "circle") return "circle(50%)";
+    if (block.dataset.shape !== "polygon") return `inset(0 round ${parseFloat(css.getPropertyValue("--corner")) * s}px)`;
+    const w = parseFloat(css.getPropertyValue("--w"));
+    const h = parseFloat(css.getPropertyValue("--h"));
+    const points: [number, number][] = JSON.parse(block.dataset.hull ?? block.dataset.points!);
+    return `polygon(${points.map(([x, y]) => `${(x / w) * 100}% ${(y / h) * 100}%`).join(", ")})`;
 }
 
 // Distance from the shape's centre to its nearest edge, in screen px.

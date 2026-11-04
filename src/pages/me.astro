@@ -60,12 +60,13 @@ const arrow =
                 Every few seconds the name is typed over with the next one in `names` (at the top). */}
             <div class="badge" data-names={JSON.stringify(badgeNames)}>
                 {/* A two-sided card: the next picture is put on the hidden side, then it flips over. */}
-                <div class="pfp" data-side="front" role="img" aria-label="Dubby's profile picture">
+                {/* Clicking it skips straight to the next name and picture. */}
+                <button class="pfp" type="button" data-side="front" aria-label="Dubby's profile picture: show the next name">
                     <div class="card">
                         <img class="face front" src={badgeNames[0].src} alt="" width="640" height="640" />
                         <img class="face back" src={badgeNames[0].src} alt="" width="640" height="640" />
                     </div>
-                </div>
+                </button>
                 <svg class="name" viewBox="-240 -240 480 480" aria-hidden="true">
                     <defs>
                         {/* Over the top, left to right; letters stand on it pointing out. */}
@@ -160,8 +161,9 @@ const arrow =
     const PAUSE = 180; // ms between deleting the old name and typing the new one
 
     // Types each name over the last one along the badge's curves, calling onName with the new name's
-    // place in `names` as it starts to appear. Returns a function that stops it.
-    function cycleNames(svg: SVGSVGElement, names: BadgeName[], onName: (n: number) => void): () => void {
+    // place in `names` as it starts to appear (and whether a skip brought it on).
+    // Returns stop, and skip: go on to the next name now rather than after HOLD.
+    function cycleNames(svg: SVGSVGElement, names: BadgeName[], onName: (n: number, skipped: boolean) => void) {
         const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
         const arcs = [...svg.querySelectorAll("text")].map((text) => ({
             text,
@@ -191,53 +193,68 @@ const arrow =
         const typingOn = (arc: Arc | null) => arcs.forEach((a) => a.text.classList.toggle("typing", a === arc));
 
         let timer = 0;
-        const wait = (ms: number) => new Promise<void>((done) => (timer = window.setTimeout(done, ms)));
         let stopped = false;
+        // Each change of name gets a number; starting another (a skip) leaves the old one behind mid-way.
+        let change = 0;
+        let current = 0; // the name showing, or being typed
+        const wait = (ms: number, ours: number) =>
+            new Promise<boolean>((done) => {
+                clearTimeout(timer);
+                timer = window.setTimeout(() => done(!stopped && ours === change), ms);
+            });
 
-        const run = async () => {
-            for (let n = 1; !stopped; n = (n + 1) % names.length) {
-                await wait(HOLD);
-                if (stopped) return;
-                const next = [names[n].top, names[n].bottom];
-                if (reduceMotion) {
-                    onName(n);
-                    arcs.forEach((arc, i) => {
-                        arc.typed.textContent = next[i];
-                        placeFor(arc, next[i]);
-                    });
-                    continue;
-                }
+        // Backspaces the name, types names[n], waits HOLD and goes on to the next.
+        const show = async (n: number, skipped: boolean) => {
+            const ours = ++change;
+            current = n;
+            const next = [names[n].top, names[n].bottom];
+            // Skipped: the picture flips the moment it's clicked, not once the old name is gone.
+            if (skipped) onName(n, true);
+            if (reduceMotion) {
+                if (!skipped) onName(n, false);
+                arcs.forEach((arc, i) => {
+                    arc.typed.textContent = next[i];
+                    placeFor(arc, next[i]);
+                });
+            } else {
                 // Backspace the bottom line, then the top.
                 for (const arc of [...arcs].reverse()) {
                     if (!arc.typed.textContent) continue;
                     typingOn(arc);
-                    while (arc.typed.textContent && !stopped) {
+                    while (arc.typed.textContent) {
                         arc.typed.textContent = arc.typed.textContent.slice(0, -1);
-                        await wait(DELETE_SPEED);
+                        if (!(await wait(DELETE_SPEED, ours))) return;
                     }
                 }
                 typingOn(arcs[0]);
-                onName(n);
-                await wait(PAUSE);
+                if (!skipped) onName(n, false);
+                if (!(await wait(PAUSE, ours))) return;
                 // Type the top line, then the bottom.
                 for (const [i, arc] of arcs.entries()) {
                     if (!next[i]) continue;
                     placeFor(arc, next[i]);
                     typingOn(arc);
                     for (const letter of next[i]) {
-                        if (stopped) return;
                         arc.typed.textContent += letter;
-                        await wait(TYPE_SPEED);
+                        if (!(await wait(TYPE_SPEED, ours))) return;
                     }
                 }
                 typingOn(null);
             }
+            if (await wait(HOLD, ours)) show((n + 1) % names.length, false);
         };
-        run();
+        wait(HOLD, change).then((go) => {
+            if (go) show(1, false);
+        });
 
-        return () => {
-            stopped = true;
-            clearTimeout(timer);
+        return {
+            stop() {
+                stopped = true;
+                clearTimeout(timer);
+            },
+            skip() {
+                if (!stopped) show((current + 1) % names.length, true);
+            },
         };
     }
 
@@ -250,16 +267,21 @@ const arrow =
         const names: BadgeName[] = JSON.parse(badge.dataset.names!);
         const pfp = badge.querySelector<HTMLElement>(".pfp")!;
         names.forEach(({ src }) => (new Image().src = src)); // load them all now, so flips don't wait
-        const stopNames = cycleNames(badge.querySelector<SVGSVGElement>(".name")!, names, async (n) => {
+        let flips = 0;
+        const nameCycle = cycleNames(badge.querySelector<SVGSVGElement>(".name")!, names, async (n, skipped) => {
             const up = pfp.dataset.side === "back" ? "back" : "front";
             const away = up === "front" ? "back" : "front";
             const showing = pfp.querySelector<HTMLImageElement>(`.face.${up}`)!;
-            if (showing.getAttribute("src") === names[n].src) return;
+            // Clicked: it always flips, even onto the same picture.
+            if (!skipped && showing.getAttribute("src") === names[n].src) return;
             const hidden = pfp.querySelector<HTMLImageElement>(`.face.${away}`)!;
-            hidden.src = names[n].src;
-            await hidden.decode().catch(() => {});
-            pfp.dataset.side = away;
+            const ours = ++flips;
+            // Only waits for the picture when it isn't already there and loaded.
+            if (hidden.getAttribute("src") !== names[n].src) hidden.src = names[n].src;
+            if (!hidden.complete) await hidden.decode().catch(() => {});
+            if (ours === flips) pfp.dataset.side = away; // unless a quicker click has flipped it since
         });
+        pfp.addEventListener("click", nameCycle.skip);
 
         // {name} in the answers copies the badge letter by letter, cursor and all.
         const nameSvg = badge.querySelector<SVGSVGElement>(".name")!;
@@ -381,7 +403,7 @@ const arrow =
             () => {
                 document.removeEventListener("keydown", onKey);
                 removeEventListener("hashchange", onHash);
-                stopNames();
+                nameCycle.stop();
                 watchName.disconnect();
                 removeEventListener("resize", placeMark);
             },
@@ -434,6 +456,25 @@ const arrow =
         animation: bob 4s ease-in-out infinite;
         transition: scale 250ms var(--ease-back), rotate 250ms var(--ease-back);
         will-change: transform;
+        /* A button, but it looks like just the picture. */
+        padding: 0;
+        border: 0;
+        background: none;
+        border-radius: 50%;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+    }
+
+    .pfp:focus-visible {
+        outline: calc(3 * var(--k)) solid var(--orange);
+        outline-offset: calc(4 * var(--k));
+    }
+
+    /* Pressed in, over the hover's grow (hence :hover too, to outrank it). */
+    .pfp:active,
+    .pfp:hover:active {
+        scale: 0.96;
+        transition-duration: 100ms;
     }
 
     /* Turns over to show whichever side data-side names (set by the script as the name changes). */
@@ -716,6 +757,13 @@ const arrow =
 
     .text :global(a) {
         color: var(--orange-dark);
+    }
+
+    /* A quiet note, small and pale enough to almost hide: <p class="aside"> in an answer. */
+    .text :global(.aside) {
+        font-family: "Fredoka Variable", var(--font-body);
+        font-size: 15px;
+        color: #ffd4a8;
     }
 
     /* The badge's name, copied into the text (see WithName.astro and mirror() in the script). */

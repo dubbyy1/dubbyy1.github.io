@@ -9,11 +9,9 @@ links:
   - label: "Open project page"
     url: "https://live-separator.dubbyy.com"
 block:
-  shape: polygon
-  points: [[4, 4], [270, 170], [66, 274]]
+  shape: big-triangle
   colour: green
   image: ../../assets/projects/live-separator.png
-  labelAngle: -25.6
 ---
 
 ## Intro

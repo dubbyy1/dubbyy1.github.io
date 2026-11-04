@@ -10,8 +10,7 @@ links:
   - label: "Go to downloads"
     url: "https://github.com/dubbyy1/swarm-sim/releases/v0.1.2"
 block:
-  shape: circle
-  size: 221
+  shape: big-circle
   colour: red
   image: ../../assets/projects/swarm-sim.png
   labelSize: 36

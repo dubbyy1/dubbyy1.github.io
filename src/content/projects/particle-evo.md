@@ -14,8 +14,7 @@ hero:
   poster: "/media/projects/particle-evo/demo-poster.jpg"
   alt: "Particle Evolution running with three species forming rings and cells, with the options and controls panels open."
 block:
-  shape: polygon
-  points: [[4, 304], [475, 4], [475, 304]]
+  shape: big-right-triangle
   colour: blue
   image: ../../assets/projects/particle-evo.png
 ---

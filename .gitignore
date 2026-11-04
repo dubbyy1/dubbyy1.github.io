@@ -25,3 +25,7 @@ pnpm-debug.log*
 
 # wrangler local state
 .wrangler/
+
+# Krita backups and autosaves
+*~
+*-autosave.kra

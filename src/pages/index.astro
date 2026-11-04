@@ -16,58 +16,16 @@ import drawingRightClean from "../assets/home/right-clean.png";
 import secretsShownIcon from "../assets/home/secrets-shown.svg";
 import secretsHiddenIcon from "../assets/home/secrets-hidden.svg";
 
-// The line under the logo is one of these, picked at random on every visit. Pronunciations are bold.
-const taglines: { pronounced?: string; text?: string }[] = [
-    { pronounced: "/ˈduːbiː/" },
-    { pronounced: "doo-bee" },
-    { pronounced: "dubbyy" },
-    { pronounced: "dúbí" },
-    { text: "idiot at rest" },
-    { text: "jack of no trades" },
-    { text: "oh, this and that, nothing in particular" },
-    { text: "how did you get here?" },
-    { text: "behind you" },
-    { text: "hey, you. you're finally awake!"},
-    { text: "disgusting."},
-    { text: "head in the clouds"},
-    { text: "i don't want to say goodbye to you"},
-    { text: "so i'll just say good night to you"},
-    { text: "can you hear me?"},
-    { text: "the fall off is inevitable"},
-    { text: "come to Haven Dublin!"},
-    { text: "please don't touch anything"},
-    { text: "somebody should have told me it would be like this"},
-    { text: "loves us with some exceptions for reasons unknown"},
-    { text: "what do you think of that L"},
-    { text: "the world is yours"},
-    { text: "what a time to be alive"},
-    { text: "photographing dreams"},
-    { text: "someone get this tornado out of my room"},
-    { text: "that's the beauty of it, it doesn't do anything!"},
-    { text: "perhaps our fears are coming true"},
-    { text: "have you tried being happy?"},
-    { text: "i don't want to be an engineer"},
-    { text: "surely we'll live to see the day"},
-    { text: "sweet as candy soft as a kiss"},
-    { text: "can't be sober and great"},
-    { text: "work in progress"},
-    { text: "no cost too great"},
-    { text: "big as the what?"},
-    { text: "sing about me"},
-    { text: "formerly nozz90"},
-    { text: "new and improved!"},
-    { text: "est. 2010"},
-    { text: "aspiring billionaire"},
-    { text: "the human"},
-    { text: "partially functional"},
-    { text: "if you don't aim too high then you aim too low"},
-    { text: "don't look down"},
-    { text: "misery is boring"},
-    { text: "as seen on tv"},
-    { text: "no such thing as a life that's better than yours"},
-    { text: "print('hello world')"},
-    { text: "god in chains"}
-];
+import taglinesFile from "../data/taglines.txt?raw";
+
+// The line under the logo is one of these, picked at random on every visit: src/data/taglines.txt,
+// one tagline per line (blank lines are skipped). *Stars* around words make them bold.
+const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const taglines = taglinesFile
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => escape(line).replace(/\*([^*]+)\*/g, "<b>$1</b>"));
 ---
 
 <Base>
@@ -101,11 +59,7 @@ const taglines: { pronounced?: string; text?: string }[] = [
                 {
                     taglines.map((line, i) => (
                         <span hidden={i !== 0}>
-                            {line.pronounced ? (
-                                <i>pronounced <b>{line.pronounced}</b></i>
-                            ) : (
-                                <i>{line.text}</i>
-                            )}
+                            <i set:html={line} />
                         </span>
                     ))
                 }
@@ -230,7 +184,8 @@ const taglines: { pronounced?: string; text?: string }[] = [
         line-height: 1.3;
     }
 
-    .tagline b {
+    /* :global because the taglines are put in as HTML, outside this page's scoped styles. */
+    .tagline :global(b) {
         /* Not 800: Nunito drops the IPA length mark (ː) from 800 up. */
         font-weight: 780;
     }

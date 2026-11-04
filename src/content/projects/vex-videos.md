@@ -5,9 +5,7 @@ date: 2026-05-23
 tags: [robotics, vex, c++, python]
 subtitle: "Custom image compression and a lightweight renderer for real-time animation on a constrained embedded system"
 block:
-  shape: rect
-  width: 330
-  height: 244
+  shape: medium-rectangle
   colour: red
   image: ../../assets/projects/vex-videos.gif
 ---

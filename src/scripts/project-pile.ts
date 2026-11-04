@@ -13,11 +13,11 @@ const DROP_GAP = 220; // ms between blocks
 const STEP = 1000 / 60;
 
 // Blocks squash when they land and wobble back, so they look soft. The physics stays rigid; this is only drawn.
-const SQUISH_PER_SPEED = 0.012; // how hard a hit squashes, per unit of impact speed
-const SQUISH_MIN_SPEED = 1.5; // gentler bumps (like blocks settling against each other) don't squash
+const SQUISH_PER_SPEED = 0.01; // how hard a hit squashes, per unit of impact speed
+const SQUISH_MIN_SPEED = 1.75; // gentler bumps (like blocks settling against each other) don't squash
 const SQUISH_MAX = 0.22; // most a block ever squashes, as a fraction of its size
 const SQUISH_STIFFNESS = 0.2; // how quickly it springs back (per step)
-const SQUISH_DAMPING = 0.2; // how quickly the wobble dies down (per step)
+const SQUISH_DAMPING = 0.3; // how quickly the wobble dies down (per step)
 
 interface Block {
     el: HTMLElement;
@@ -91,10 +91,11 @@ export function startPile(root: HTMLElement): () => void {
         if (el.dataset.shape === "circle") {
             body = Bodies.circle(0, 0, w / 2, opts);
         } else if (el.dataset.shape === "polygon") {
-            const points: [number, number][] = JSON.parse(el.dataset.points!);
+            // The outline with its corners rounded, matching what's drawn (ProjectPile.astro).
+            const points: [number, number][] = JSON.parse(el.dataset.hull ?? el.dataset.points!);
             body = Bodies.fromVertices(0, 0, [points.map(([x, y]) => ({ x: x * s, y: y * s }))], opts);
         } else {
-            body = Bodies.rectangle(0, 0, w, h, { ...opts, chamfer: { radius: 5 * s } });
+            body = Bodies.rectangle(0, 0, w, h, { ...opts, chamfer: { radius: num("--corner") } });
         }
         return {
             el,
