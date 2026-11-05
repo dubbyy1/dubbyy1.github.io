@@ -30,14 +30,24 @@ const sprites = import.meta.glob<{ default: ImageMetadata }>("../../design/shape
 const sprite = (name: string | undefined, kind: "outline" | "highlight") =>
     name ? sprites[`../../design/shape-templates/${name}-${kind}.png`]?.default : undefined;
 
-// Highlighted projects also get sparkles all the way round, placed by sparkles() below. Each one is a
-// random pick from design/sparkles/*.png (as many as you like). Draw them pointing straight up, with the
-// bottom of the image the end nearest the shape, at SPRITE_SCALE image px per design px like the outlines.
+// Highlighted projects also get sparkles all the way round, placed by sparkles() below. Draw them pointing
+// straight up, with the bottom of the image the end nearest the shape, at SPRITE_SCALE image px per design px
+// like the outlines. The drawings in design/sparkles/*.png (as many as you like) are the frames of an
+// animation: every sparkle flips through them in turn, like a hand-drawn cartoon, starting on a random one.
 const SPARKLE_SPACING = 14; // design px between sparkles, going round the edge
 const SPARKLE_GAP = 6; // how far outside the edge they start, in design px
+const SPARKLE_OUTLINE = 1; // thickness of the black line drawn round each sparkle, in design px
+const SPARKLE_FPS = 8; // frames a second: low, so it looks drawn by hand
+const SPARKLE_JITTER = 0.8; // most a frame is shifted from the sparkle's spot, each way, in design px
 const sparkleImages = Object.values(
     import.meta.glob<{ default: ImageMetadata }>("../../design/sparkles/*.png", { eager: true }),
 ).map(({ default: img }) => ({ src: img.src, w: img.width / SPRITE_SCALE, h: img.height / SPRITE_SCALE }));
+
+// Each frame shows for its share of the loop. Keyframe stops can't come from a CSS variable,
+// so they're written here for however many drawings there are.
+const frameMs = 1000 / SPARKLE_FPS;
+const sparkleCycle = `${Math.round(frameMs * sparkleImages.length)}ms`;
+const sparkleFrames = `@keyframes sparkle-frame { 0% { opacity: 1; } ${+(100 / sparkleImages.length).toFixed(3)}%, 100% { opacity: 0; } }`;
 
 type Point = [number, number];
 
@@ -162,11 +172,13 @@ function sparkles(edge: Point[], [cx, cy]: Point, seed: string) {
         // Straight out: at right angles to the side, whichever way is away from the middle.
         let [nx, ny] = [(by - ay) / side.length, -(bx - ax) / side.length];
         if (nx * (x - cx) + ny * (y - cy) < 0) [nx, ny] = [-nx, -ny];
-        const img = sparkleImages[Math.floor(random() * sparkleImages.length)];
+        const first = Math.floor(random() * sparkleImages.length); // which frame it starts on
         const angle = (Math.atan2(ny, nx) * 180) / Math.PI + 90 + (random() - 0.5) * 20;
         const scale = 0.8 + random() * 0.35;
         const r = (n: number) => +n.toFixed(2);
-        return { img, transform: `translate(${r(x + nx * SPARKLE_GAP)} ${r(y + ny * SPARKLE_GAP)}) rotate(${r(angle)}) scale(${r(scale)})` };
+        // Each frame sits a little off from the others, so the sparkle shifts about as it flips through them.
+        const nudges = sparkleImages.map(() => [r((random() - 0.5) * 2 * SPARKLE_JITTER), r((random() - 0.5) * 2 * SPARKLE_JITTER)]);
+        return { first, nudges, transform: `translate(${r(x + nx * SPARKLE_GAP)} ${r(y + ny * SPARKLE_GAP)}) rotate(${r(angle)}) scale(${r(scale)})` };
     });
 }
 
@@ -192,14 +204,24 @@ const blocks = await Promise.all(
             height: drawing.height / SPRITE_SCALE,
         };
         const sparks = highlighted ? sparkles(g.edge, [g.cx, g.cy], project.id) : [];
-        return { project, g, image, outline, sparks, ring: highlighted && !highlightSprite, clipId: `block-clip-${i}` };
+        return {
+            project,
+            g,
+            image,
+            outline,
+            sparks,
+            ring: highlighted && !highlightSprite,
+            clipId: `block-clip-${i}`,
+            sparkleOutlineId: `sparkle-outline-${i}`,
+        };
     }),
 );
 ---
 
-<div class="pile">
+<style is:inline set:html={sparkleFrames}></style>
+<div class="pile" style={`--sparkle-cycle: ${sparkleCycle}`}>
     {
-        blocks.map(({ project, g, image, outline, sparks, ring, clipId }) => {
+        blocks.map(({ project, g, image, outline, sparks, ring, clipId, sparkleOutlineId }) => {
             const { block } = project.data;
             return (
                 <a
@@ -218,6 +240,19 @@ const blocks = await Promise.all(
                     <svg class="shape" viewBox={`0 0 ${g.w} ${g.h}`} aria-hidden="true">
                         <defs>
                             <clipPath id={clipId} set:html={g.outline} />
+                            {/* A black line round each sparkle: their shapes, grown by SPARKLE_OUTLINE and
+                                filled black, with the sparkles drawn back on top. */}
+                            {sparks.length > 0 && (
+                                <filter id={sparkleOutlineId}>
+                                    <feMorphology in="SourceAlpha" operator="dilate" radius={SPARKLE_OUTLINE} result="grown" />
+                                    <feFlood flood-color="#000" />
+                                    <feComposite in2="grown" operator="in" />
+                                    <feMerge>
+                                        <feMergeNode />
+                                        <feMergeNode in="SourceGraphic" />
+                                    </feMerge>
+                                </filter>
+                            )}
                         </defs>
                         <g clip-path={`url(#${clipId})`}>
                             <g fill={fills[block.colour]} set:html={g.outline} />
@@ -242,9 +277,23 @@ const blocks = await Promise.all(
                             />
                         )}
                         {sparks.length > 0 && (
-                            <g class="sparkles">
-                                {sparks.map(({ img, transform }) => (
-                                    <image href={img.src} x={-img.w / 2} y={-img.h} width={img.w} height={img.h} transform={transform} />
+                            <g class="sparkles" filter={`url(#${sparkleOutlineId})`}>
+                                {/* Every frame of the sparkle, stacked; only one shows at a time. Each frame's delay
+                                    puts it at its turn in the loop, counting from the sparkle's first frame. */}
+                                {sparks.map(({ first, nudges, transform }) => (
+                                    <g transform={transform}>
+                                        {sparkleImages.map((img, f) => (
+                                            <image
+                                                class:list={["sparkle", { first: f === first }]}
+                                                href={img.src}
+                                                x={-img.w / 2 + nudges[f][0]}
+                                                y={-img.h + nudges[f][1]}
+                                                width={img.w}
+                                                height={img.h}
+                                                style={`animation-delay: ${-Math.round(((first - f + sparkleImages.length) % sparkleImages.length) * frameMs)}ms`}
+                                            />
+                                        ))}
+                                    </g>
                                 ))}
                             </g>
                         )}
@@ -318,6 +367,19 @@ const blocks = await Promise.all(
         pointer-events: none;
     }
 
+    /* A sparkle's frames take turns showing (sparkle-frame is written out in the frontmatter).
+       steps(1): each one snaps on and off, with no fading in between. */
+    .sparkle {
+        opacity: 0;
+        animation: sparkle-frame var(--sparkle-cycle) steps(1) infinite;
+    }
+
+    /* With only one drawing there's nothing to flip through. */
+    .sparkle.first:only-child {
+        opacity: 1;
+        animation: none;
+    }
+
     /* Highlighted projects: a bright yellow edge. 6 units wide, of which the inner 3 show:
        a thin solid line in design px, scaling with the block. */
     .ring {
@@ -378,6 +440,20 @@ const blocks = await Promise.all(
         .label {
             transition: none;
         }
+
+        /* Each sparkle stays on its first frame. */
+        .sparkle {
+            animation: none;
+        }
+
+        .sparkle.first {
+            opacity: 1;
+        }
+    }
+
+    /* Animations off in the settings (global.css stops the frames flipping): each sparkle shows its first frame. */
+    :global(html[data-motion="off"]) .sparkle.first {
+        opacity: 1;
     }
 
     /* With physics: the script places every block itself. */

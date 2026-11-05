@@ -4,7 +4,7 @@
 import Base from "../layouts/Base.astro";
 ---
 
-<Base title="y">
+<Base title="y" achievements={false}>
     <div class="desktop" hidden>
         <svg class="wallpaper" viewBox="-32 -16 64 32" fill="#eee" aria-hidden="true">
             <ellipse id="right-eye" cx="22.4" cy="-6.4" rx="9.6" ry="9.6"></ellipse>
@@ -201,6 +201,8 @@ import Base from "../layouts/Base.astro";
 </style>
 
 <script>
+    import { unlock } from "../scripts/achievements";
+
     // SHA-256 of the password, so the password itself isn't sitting in the page source.
     // It's still checked in the browser, so this keeps out the curious, not the determined.
     const PASSWORD_HASH = "840cc0b9c0222462bb65eb7423c4355318ffa3e433dac524a441978b8a8ca3a5";
@@ -232,6 +234,8 @@ import Base from "../layouts/Base.astro";
 
             // Case doesn't matter: "Sturluson" works as well as "sturluson".
             if ((await sha256(input.value.toLowerCase())) === PASSWORD_HASH) {
+                // Saved, but no card pops up: this page has achievements turned off.
+                unlock("password");
                 input.disabled = button.disabled = true;
                 form.classList.remove("wrong");
                 form.classList.add("open");

@@ -3,6 +3,7 @@
 // grows underneath the clicked block, while the block's own label fades out.
 // The fade is the "iris" page transition in global.css, started by navigate(..., { info: "iris" }).
 import { navigate } from "astro:transitions/client";
+import { reducedMotion } from "./settings";
 
 const GROW_MS = 520;
 const GROW_EASE = "cubic-bezier(0.65, 0, 0.35, 1)"; // ease-in-out-cubic: on-screen shape changing size
@@ -15,7 +16,7 @@ export function irisLinks(root: HTMLElement, s: number): () => void {
         if (!block || busy) return;
         // New tab, new window, download etc. stay as normal link clicks.
         if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-        if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+        if (reducedMotion()) return;
 
         e.preventDefault();
         busy = true;

@@ -9,7 +9,7 @@ export interface Screen {
 export const screens: Screen[] = [
     { path: "/left", name: "coming soon" },
     { path: "/", name: "home" },
-    { path: "/right", name: "coming soon" },
+    { path: "/right", name: "settings" },
 ];
 
 // Builds see paths like "/right.html" or "/index.html"; the browser sees "/right" or "/".
@@ -28,7 +28,7 @@ export function neighbours(path: string): { prev?: Screen; next?: Screen } {
 
 // Pages that sit "below" the screens: going into one slides the page up, coming back slides it down.
 // They have no sideways arrows or swiping. Pages inside them (e.g. /projects/some-project) count too.
-export const sections: string[] = ["/projects", "/me"];
+export const sections: string[] = ["/projects", "/me", "/achievements"];
 
 // Pages that appear with a hard cut: no slide or fade going to or from them.
 export const cuts: string[] = ["/y"];

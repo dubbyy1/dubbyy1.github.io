@@ -148,6 +148,9 @@ const arrow =
 </Base>
 
 <script>
+    import { count } from "../scripts/achievements";
+    import { reducedMotion } from "../scripts/settings";
+
     // A name from `names` at the top of the page, with its picture's address.
     interface BadgeName {
         top: string;
@@ -164,7 +167,7 @@ const arrow =
     // place in `names` as it starts to appear (and whether a skip brought it on).
     // Returns stop, and skip: go on to the next name now rather than after HOLD.
     function cycleNames(svg: SVGSVGElement, names: BadgeName[], onName: (n: number, skipped: boolean) => void) {
-        const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const reduceMotion = reducedMotion();
         const arcs = [...svg.querySelectorAll("text")].map((text) => ({
             text,
             path: text.querySelector("textPath")!,
@@ -189,8 +192,14 @@ const arrow =
             placeFor(arc, arc.typed.textContent ?? "");
         }
 
-        // The cursor only shows on the curve being typed on.
-        const typingOn = (arc: Arc | null) => arcs.forEach((a) => a.text.classList.toggle("typing", a === arc));
+        // The cursor only shows on the curve being typed on. Elsewhere it's taken out, not just made see-through:
+        // Firefox doesn't always redraw text on a curve when its blink stops, leaving a stale cursor behind.
+        const typingOn = (arc: Arc | null) =>
+            arcs.forEach((a) => {
+                a.text.classList.toggle("typing", a === arc);
+                a.caret.textContent = a === arc ? "|" : "";
+            });
+        typingOn(null);
 
         let timer = 0;
         let stopped = false;
@@ -282,6 +291,7 @@ const arrow =
             if (ours === flips) pfp.dataset.side = away; // unless a quicker click has flipped it since
         });
         pfp.addEventListener("click", nameCycle.skip);
+        pfp.addEventListener("click", () => count("pfp-clicks"));
 
         // {name} in the answers copies the badge letter by letter, cursor and all.
         const nameSvg = badge.querySelector<SVGSVGElement>(".name")!;
@@ -307,7 +317,6 @@ const arrow =
 
         // Everything in the row moves when the picked word changes size, so each one slides from where it was.
         const movers = [...words, ...root.querySelectorAll<HTMLElement>(".step")];
-        const slide = matchMedia("(prefers-reduced-motion: no-preference)");
 
         // The "?" is its own element, so it can travel separately. It rests where the picked word's own
         // (invisible) "?" is. Offsets ignore transforms, so this is where things settle, even mid-slide.
@@ -328,7 +337,7 @@ const arrow =
             const was = mark.getBoundingClientRect();
             mark.getAnimations().forEach((a) => a.cancel());
             placeMark();
-            if (!slide.matches) return;
+            if (reducedMotion()) return;
             const now = mark.getBoundingClientRect();
             const dx = was.left - now.left;
             const dy = was.top - now.top;
@@ -359,7 +368,7 @@ const arrow =
             const url = current === 0 ? location.pathname + location.search : `#${word}`;
             history.replaceState(history.state, "", url);
 
-            if (!slide.matches) return;
+            if (reducedMotion()) return;
             movers.forEach((el, j) => {
                 // A slide still running would throw the measurement off; start from where it is now instead.
                 el.getAnimations().forEach((a) => a.id === "slide" && a.cancel());
@@ -735,7 +744,7 @@ const arrow =
         margin: calc(15 * var(--k) - 8px) 0 0 calc(34 * var(--k) - 8px);
         padding: 8px 8px 16px;
         font-weight: 600;
-        font-size: max(16px, calc(24 * var(--k)));
+        font-size: max(15px, calc(20 * var(--k)));
         line-height: 1.36;
         /* Runs each time an answer is shown, so a new pick fades up into place. */
         animation: rise 180ms var(--ease-out);

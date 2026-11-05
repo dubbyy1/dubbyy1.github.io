@@ -28,7 +28,7 @@ import Base from "../layouts/Base.astro";
     .message {
         container-type: inline-size;
         position: relative;
-        width: min(599px, 100%);
+        width: min(calc(599 * var(--px)), 100%);
         aspect-ratio: 599 / 247;
         translate: 0 3.6%;
     }

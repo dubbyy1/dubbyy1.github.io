@@ -3,6 +3,8 @@
 // over the plain background (see "in-left"/"in-right" in global.css). Otherwise it springs back.
 // Sides with no screen give rubber-band resistance instead.
 
+import { reducedMotion } from "./settings";
+
 const COMMIT_DISTANCE = 0.25; // fraction of the screen width
 const COMMIT_VELOCITY = 0.45; // px per ms
 const AXIS_LOCK = 10; // px of movement before deciding sideways vs. scrolling
@@ -15,10 +17,9 @@ export function enableSwipe(options: {
     hasNeighbour: (dir: Direction) => boolean;
     go: (dir: Direction) => void;
 }) {
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        enableFlickOnly(options);
-        return;
-    }
+    // With reduced motion the page doesn't follow the finger (enableFlickOnly). Decided on every touch, as
+    // animations can be switched off in the settings at any time.
+    enableFlickOnly({ ...options, enabled: () => options.enabled() && reducedMotion() });
 
     let startX = 0;
     let startY = 0;
@@ -46,7 +47,7 @@ export function enableSwipe(options: {
 
     document.addEventListener("touchstart", (e) => {
         axis = null;
-        if (busy || e.touches.length > 1 || !options.enabled()) return;
+        if (busy || e.touches.length > 1 || !options.enabled() || reducedMotion()) return;
         startX = e.touches[0].clientX;
         startY = e.touches[0].clientY;
         dx = 0;

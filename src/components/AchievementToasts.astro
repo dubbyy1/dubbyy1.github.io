@@ -1,0 +1,141 @@
+---
+// Where unlocked achievements pop up: an orange banner slides in from the right edge of the screen,
+// then back out (scripts/achievements.ts makes them). It's kept across page changes, so a banner that's
+// showing carries on while the page slides away under it.
+import "@fontsource-variable/fredoka/wght.css";
+---
+
+<div id="achievement-toasts" role="status" aria-live="polite" transition:persist transition:name="achievement-toasts" transition:animate="none"></div>
+
+<style>
+    /* Flush against the right edge, a little way down, as in the design. Sizes are in --px (global.css),
+       so the banner takes up the same share of every screen, like the home page. */
+    #achievement-toasts {
+        position: fixed;
+        top: calc(80 * var(--px));
+        right: 0;
+        z-index: 100;
+        display: grid;
+        justify-items: end;
+        gap: calc(28 * var(--px));
+        pointer-events: none;
+    }
+
+    /* Pages without achievements (<Base achievements={false}>) never show one, even mid-slide. */
+    :global(html[data-no-achievements]) #achievement-toasts {
+        display: none;
+    }
+
+    /* The banners are made by the script, outside this component's styles, hence :global.
+       Each is a link to the achievements page holding the banner itself. The link stays put; only the
+       banner moves on hover, so it can't slide out from under the pointer and flicker. */
+    #achievement-toasts :global(.achievement-toast) {
+        display: block;
+        color: #fff;
+        text-decoration: none;
+        /* The box around them lets clicks through to the page; the banners take them. */
+        pointer-events: auto;
+        /* It slides in and out: kept on the GPU throughout, so it doesn't jump a pixel at either end. */
+        will-change: transform;
+    }
+
+    #achievement-toasts :global(.achievement-toast:focus-visible) {
+        outline-offset: -6px;
+    }
+
+    /* --tall is the banner's height, which is also how far in its slanted left end reaches. */
+    #achievement-toasts :global(.banner) {
+        --tall: calc(92 * var(--px));
+        position: relative;
+        display: flex;
+        align-items: center;
+        min-width: calc(400 * var(--px));
+        max-width: min(calc(600 * var(--px)), 100vw);
+        min-height: var(--tall);
+        /* Room on the left for the slant, on the right for the picture. */
+        padding: calc(12 * var(--px)) calc(160 * var(--px)) calc(15 * var(--px)) calc(58 * var(--px));
+        transition: translate 200ms ease;
+    }
+
+    /* Pointed at: the whole banner slides a little further out from the edge. */
+    @media (hover: hover) and (pointer: fine) {
+        #achievement-toasts :global(.achievement-toast:hover .banner) {
+            translate: calc(-14 * var(--px)) 0;
+        }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        #achievement-toasts :global(.banner) {
+            transition: none;
+        }
+    }
+
+    /* The orange, cut off at a slant on the left. On its own layer, so the picture can poke out of it.
+       It carries on past the edge of the screen, so there's still orange behind the banner as it slides out. */
+    #achievement-toasts :global(.banner)::before {
+        content: "";
+        position: absolute;
+        inset: 0 -24px 0 0;
+        z-index: -1;
+        background: var(--orange-mid);
+        clip-path: polygon(0 0, 100% 0, 100% 100%, var(--tall) 100%);
+    }
+
+    #achievement-toasts :global(p) {
+        margin: 0;
+        line-height: 1.15;
+    }
+
+    #achievement-toasts :global(.name) {
+        font-family: "Fredoka Variable", var(--font-body);
+        font-weight: 600;
+        font-size: calc(30 * var(--px));
+    }
+
+    /* Tucked in a little from the name, following the slant. */
+    #achievement-toasts :global(.how) {
+        margin-left: calc(22 * var(--px));
+        font-weight: 600;
+        font-size: calc(18 * var(--px));
+    }
+
+    /* The achievement's picture, poking out over the top: its own drawing (image in data/achievements.ts),
+       or the triangle (public/achievements/achievement-tri.png). The drawings bring their own tilt. */
+    #achievement-toasts :global(.picture) {
+        position: absolute;
+        right: calc(4 * var(--px));
+        top: calc(-32 * var(--px));
+        width: calc(146 * var(--px));
+        height: auto;
+    }
+
+    /* Phones: sizes of their own, a bit smaller, so it doesn't cover the whole width. */
+    @media (max-width: 600px) {
+        #achievement-toasts {
+            top: 48px;
+            gap: 28px;
+        }
+
+        #achievement-toasts :global(.banner) {
+            --tall: 70px;
+            min-width: 0;
+            max-width: 92vw;
+            padding: 9px 122px 11px 44px;
+        }
+
+        #achievement-toasts :global(.name) {
+            font-size: 22px;
+        }
+
+        #achievement-toasts :global(.how) {
+            margin-left: 16px;
+            font-size: 14px;
+        }
+
+        #achievement-toasts :global(.picture) {
+            right: 3px;
+            top: -24px;
+            width: 111px;
+        }
+    }
+</style>

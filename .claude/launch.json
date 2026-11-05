@@ -3,9 +3,15 @@
   "configurations": [
     {
       "name": "dubbyy-dev",
-      "runtimeExecutable": "C:/Program Files/nodejs/node.exe",
-      "runtimeArgs": ["node_modules/astro/bin/astro.mjs", "dev"],
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
       "port": 4321
+    },
+    {
+      "name": "dubbyy-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "preview", "--", "--port", "4322"],
+      "port": 4322
     }
   ]
 }

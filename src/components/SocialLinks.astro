@@ -7,17 +7,17 @@ import github from "../assets/social/github.png";
 
 <ul class="social-links">
     <li>
-        <a href="https://www.linkedin.com/in/dubbyy/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+        <a href="https://www.linkedin.com/in/dubbyy/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" data-social="linkedin">
             <Image src={linkedin} alt="" width={120} height={120} />
         </a>
     </li>
     <li>
-        <a href="https://github.com/dubbyy1" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+        <a href="https://github.com/dubbyy1" target="_blank" rel="noopener noreferrer" aria-label="GitHub" data-social="github">
             <Image src={github} alt="" width={120} height={120} />
         </a>
     </li>
     <li>
-        <a href="mailto:chidubem.d.uzoukwu@gmail.com" aria-label="Email">
+        <a href="mailto:chidubem.d.uzoukwu@gmail.com" aria-label="Email" data-social="email">
             <svg viewBox="52 31 88 88" aria-hidden="true">
                 <path fill="#4285f4" d="M58 108h14V74L52 59v43c0 3.32 2.69 6 6 6" />
                 <path fill="#34a853" d="M120 108h14c3.32 0 6-2.69 6-6V59l-20 15" />
@@ -28,6 +28,24 @@ import github from "../assets/social/github.png";
         </a>
     </li>
 </ul>
+
+<script>
+    import { collect } from "../scripts/achievements";
+
+    // Each link clicked (or middle-clicked into a new tab) counts towards the "every social link" achievement.
+    // When adding a link, give it a data-social name, and update the achievement's goal in data/achievements.ts.
+    document.addEventListener("astro:page-load", () => {
+        for (const list of document.querySelectorAll(".social-links")) {
+            const links = [...list.querySelectorAll<HTMLAnchorElement>("a[data-social]")];
+            const all = links.map((link) => link.dataset.social!);
+            for (const link of links) {
+                const tick = () => collect("all-socials", link.dataset.social!, all);
+                link.addEventListener("click", tick);
+                link.addEventListener("auxclick", (e) => e.button === 1 && tick());
+            }
+        }
+    });
+</script>
 
 <style>
     .social-links {

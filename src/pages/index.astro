@@ -29,17 +29,9 @@ const taglines = taglinesFile
 ---
 
 <Base>
-    {/* data-drawings is "on" or "off"; the button in the corner flips it and each drawing shows its matching version. */}
-    <div class="home" data-drawings="on">
-    <script is:inline data-astro-rerun>
-        // Before the drawings are parsed, so the remembered choice never flashes the other version.
-        {
-            let state = "on";
-            try { state = localStorage.getItem("drawings") === "off" ? "off" : "on"; } catch {}
-            document.querySelector(".home").dataset.drawings = state;
-        }
-    </script>
-
+    {/* The secrets setting (scripts/settings.ts) picks which version of each drawing shows: with secrets, or clean.
+        The button in the corner flips it, as does the settings page. */}
+    <div class="home">
     {/* Hand-drawn notes, behind everything else. The side ones follow the arrows (--arrow-* in global.css). */}
     <div class="doodles" aria-hidden="true">
         <Image class="doodle left on" src={drawingLeft} alt="" loading="eager" />
@@ -66,16 +58,81 @@ const taglines = taglinesFile
             </p>
             <script is:inline data-astro-rerun>
                 // Runs as soon as the tagline is parsed (and again on each visit), so the first line never flashes.
+                // Clicking it switches to another line.
                 {
-                    const lines = document.querySelector(".tagline").children;
-                    // Never show the same line twice in a row, so coming back always looks different.
+                    const tagline = document.querySelector(".tagline");
+                    const lines = tagline.children;
+                    // Shows a random line other than the one numbered `not`, and remembers it.
+                    // Never the same line twice in a row, so coming back (or clicking) always looks different.
+                    const show = (not) => {
+                        const hasLast = not >= 0 && not < lines.length;
+                        let pick = Math.floor(Math.random() * (hasLast ? lines.length - 1 : lines.length));
+                        if (hasLast && pick >= not) pick++;
+                        try { sessionStorage.setItem("tagline", String(pick)); } catch {}
+                        for (let i = 0; i < lines.length; i++) lines[i].hidden = i !== pick;
+                        return pick;
+                    };
                     let last = -1;
                     try { last = Number(sessionStorage.getItem("tagline") ?? -1); } catch {}
-                    const hasLast = last >= 0 && last < lines.length;
-                    let pick = Math.floor(Math.random() * (hasLast ? lines.length - 1 : lines.length));
-                    if (hasLast && pick >= last) pick++;
-                    try { sessionStorage.setItem("tagline", String(pick)); } catch {}
-                    for (let i = 0; i < lines.length; i++) lines[i].hidden = i !== pick;
+                    let current = show(last);
+
+                    // A click rolls the tagline like a box turning a quarter: the old line tips back onto the
+                    // top face as the new one comes up from the bottom face. The box is as tall as the old line
+                    // and as deep as the new one (they can be one or two lines), so after the turn the new
+                    // line is the front. Both faces turn about the box's middle, which moves from half the
+                    // old height down to half the new height so the text stays lined up at the top.
+                    // Still, if animations are off in the settings or the device asks for less motion.
+                    const reduceMotion = () =>
+                        document.documentElement.dataset.motion === "off" ||
+                        matchMedia("(prefers-reduced-motion: reduce)").matches;
+                    const TURN = { duration: 450, easing: "cubic-bezier(0.65, 0, 0.35, 1)" }; // ease-in-out-cubic
+                    // A face whose own turning point is (y, z) from its top, turned by `angle` about the box's
+                    // middle at (my, mz).
+                    const face = (my, mz, angle, y, z) =>
+                        `translate3d(0, ${my}px, ${mz}px) rotateX(${angle}deg) translate3d(0, ${-y}px, ${-z}px)`;
+                    let stopRoll = () => {};
+                    tagline.addEventListener("click", () => {
+                        stopRoll();
+                        const old = lines[current];
+                        // The exact width: offsetWidth rounds to whole pixels, and a line rounded down even
+                        // a fraction too narrow wraps onto a second line while it turns.
+                        const { width: oldWidth, height: h } = old.getBoundingClientRect();
+                        current = show(current);
+                        if (reduceMotion()) return;
+                        const next = lines[current];
+                        const d = next.offsetHeight;
+
+                        // The old line stays on screen over the new one until it has turned away.
+                        old.hidden = false;
+                        Object.assign(old.style, { position: "absolute", left: "0", top: "0", width: `${oldWidth}px` });
+                        old.style.transformOrigin = next.style.transformOrigin = "0 0";
+                        // Darker as it faces away, like a side of the box in shadow.
+                        const turns = [
+                            old.animate(
+                                [
+                                    { transform: face(h / 2, -d / 2, 0, h / 2, -d / 2) },
+                                    { transform: face(d / 2, -h / 2, 90, h / 2, -d / 2), opacity: 0.3 },
+                                ],
+                                TURN,
+                            ),
+                            next.animate(
+                                [
+                                    { transform: face(h / 2, -d / 2, -90, d / 2, -h / 2), opacity: 0.3 },
+                                    { transform: face(d / 2, -h / 2, 0, d / 2, -h / 2) },
+                                ],
+                                TURN,
+                            ),
+                        ];
+                        const done = () => {
+                            turns.forEach((turn) => turn.cancel());
+                            old.hidden = true;
+                            old.removeAttribute("style");
+                            next.removeAttribute("style");
+                            stopRoll = () => {};
+                        };
+                        stopRoll = done;
+                        turns[0].finished.then(done, () => {});
+                    });
                 }
             </script>
             <div class="socials">
@@ -91,35 +148,39 @@ const taglines = taglinesFile
         {/* Not shown, but still read out by screen readers. */}
         <span class="label visually-hidden">hide secrets</span>
     </button>
-    <script is:inline data-astro-rerun>
-        {
-            const home = document.querySelector(".home");
-            const button = home.querySelector(".drawings-toggle");
-            const show = (state) => {
-                home.dataset.drawings = state;
-                // Pressed means the secrets are hidden.
-                button.setAttribute("aria-pressed", String(state === "off"));
-                button.querySelector(".label").textContent = state === "on" ? "hide secrets" : "show secrets";
-            };
-            show(home.dataset.drawings);
-            button.addEventListener("click", () => {
-                const state = home.dataset.drawings === "on" ? "off" : "on";
-                show(state);
-                try { localStorage.setItem("drawings", state); } catch {}
-            });
-        }
-    </script>
     </div>
 </Base>
 
+<script>
+    import { getSettings, setSetting } from "../scripts/settings";
+
+    document.addEventListener("astro:page-load", () => {
+        const button = document.querySelector<HTMLButtonElement>(".drawings-toggle");
+        if (!button) return;
+        const show = (secrets: boolean) => {
+            // Pressed means the secrets are hidden.
+            button.setAttribute("aria-pressed", String(!secrets));
+            button.querySelector(".label")!.textContent = secrets ? "hide secrets" : "show secrets";
+        };
+        show(getSettings().secrets);
+        button.addEventListener("click", () => {
+            const secrets = !getSettings().secrets;
+            setSetting("secrets", secrets);
+            show(secrets);
+        });
+    });
+</script>
+
 <style>
-    /* Only there to carry data-drawings; it doesn't take part in the layout. */
+    /* Only a wrapper; it doesn't take part in the layout. */
     .home {
         display: contents;
     }
 
-    .home[data-drawings="on"] :is(.doodle, .icon).off,
-    .home[data-drawings="off"] :is(.doodle, .icon).on {
+    /* Each drawing and the toggle's icon come in two versions: with the secrets (.on) and without (.off).
+       <html data-secrets="off"> (scripts/settings.ts) says which. */
+    :global(html:not([data-secrets="off"])) .home :is(.doodle, .icon).off,
+    :global(html[data-secrets="off"]) .home :is(.doodle, .icon).on {
         display: none;
     }
 
@@ -136,8 +197,8 @@ const taglines = taglinesFile
     }
 
     .drawings-toggle .icon {
-        width: 36px;
-        height: 36px;
+        width: max(28px, calc(36 * var(--px)));
+        height: max(28px, calc(36 * var(--px)));
     }
 
     .drawings-toggle:hover {
@@ -156,7 +217,8 @@ const taglines = taglinesFile
     .hero {
         container-type: inline-size;
         position: relative;
-        width: min(599px, 100%);
+        /* 599 px on a 1920-wide screen and the same share of any other (--px in global.css). */
+        width: min(calc(599 * var(--px)), 100%);
         /* Logo plus the icons that hang below it. */
         aspect-ratio: 599 / 247;
         /* The design sits the group slightly below centre. */
@@ -182,6 +244,20 @@ const taglines = taglinesFile
         /* Long lines wrap before they reach the dropped y (the design's 410-wide text box). */
         max-width: calc(410 * var(--u));
         line-height: 1.3;
+        /* Clicking it rolls to another line (see the script after it), so quick clicks shouldn't select it. */
+        user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        /* Depth for the roll: lower is a stronger 3D look. */
+        perspective: calc(600 * var(--u));
+    }
+
+    /* Blocks, so they can turn in 3D (inline text can't). */
+    .tagline > span {
+        display: block;
+    }
+
+    .tagline > span[hidden] {
+        display: none;
     }
 
     /* :global because the taglines are put in as HTML, outside this page's scoped styles. */

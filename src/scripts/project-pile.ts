@@ -3,6 +3,7 @@
 // Returns a function that stops everything (called when leaving the page).
 import Matter from "matter-js";
 import { irisLinks } from "./iris";
+import { reducedMotion } from "./settings";
 
 const { Engine, Bodies, Body, Composite, Sleeping } = Matter;
 
@@ -35,7 +36,11 @@ interface Block {
 }
 
 export function startPile(root: HTMLElement): () => void {
-    const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Physics off in the settings: the blocks stay in the rows they're laid out in without JavaScript,
+    // still with their hover cards. (Opening one is a plain page change: the iris needs the pile.)
+    if (document.documentElement.dataset.physics === "off") return hoverCard(root);
+
+    const reduceMotion = reducedMotion();
 
     // Blocks are sized for a 1280×720 screen. Scale them by screen area, so a tall phone gets blocks
     // about as big as its width allows rather than shrinking to fit its narrow side.

@@ -12,14 +12,17 @@ import { tagColour, tagText } from "../../data/tags";
 
 export async function getStaticPaths() {
     const projects = await getCollection("projects");
-    return projects.map((project) => ({ params: { slug: project.id }, props: { project } }));
+    const all = projects.map((project) => project.id);
+    return projects.map((project) => ({ params: { slug: project.id }, props: { project, all } }));
 }
 
 interface Props {
     project: CollectionEntry<"projects">;
+    // Every project's id, for the "visit every project" achievement.
+    all: string[];
 }
 
-const { project } = Astro.props;
+const { project, all } = Astro.props;
 const { data } = project;
 const { Content } = await render(project);
 
@@ -45,7 +48,7 @@ const arrow =
     <SectionHeader page="projects" fixed={false} />
 
     <main>
-        <div class:list={["project", { "no-media": !hasMedia }]}>
+        <div class:list={["project", { "no-media": !hasMedia }]} data-project={project.id} data-all-projects={JSON.stringify(all)}>
             <a class="back" href="/projects">
                 <svg viewBox="0 0 63.6396 66.468" aria-hidden="true"><path d={arrow} /></svg>
                 projects
@@ -118,6 +121,17 @@ const arrow =
         }
     </main>
 </Base>
+
+<script>
+    import { collect } from "../../scripts/achievements";
+
+    // Ticks this project off towards the "visit every project" achievement.
+    document.addEventListener("astro:page-load", () => {
+        const page = document.querySelector<HTMLElement>("[data-project]");
+        if (!page) return;
+        collect("all-projects", page.dataset.project!, JSON.parse(page.dataset.allProjects!));
+    });
+</script>
 
 <style>
     main {

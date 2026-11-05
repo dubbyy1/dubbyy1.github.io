@@ -33,7 +33,7 @@ export const events: TimelineEvent[] = [
     {
         date: "2019-09-??",
         title: "My first program",
-        caption: "I wrote my very first lines of Java (big mistake). My first ever program was a [chatbot](https://github.com/dubbyy1), I was ahead of my time"
+        caption: "I wrote my very first lines of Java! My first ever program was a [chatbot](https://github.com/dubbyy1), I was ahead of my time"
     },
     
     {
@@ -79,7 +79,7 @@ export const events: TimelineEvent[] = [
     {
         date: "2026-06-08",
         title: "Patch x OpenAI Young Builders Week",
-        caption: "I was invited to a 5 day coding camp with Patch and OpenAI! Learnt a lot and met loads of amazing people. Probably the most impactful 5 days of my life"
+        caption: "I was invited to a 5 day coding camp with Patch and OpenAI. Learnt a lot and met loads of amazing people. Probably the most impactful 5 days of my life!"
     },
     
     {

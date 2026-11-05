@@ -1,0 +1,227 @@
+---
+// Every achievement (data/achievements.ts), with the ones this browser has unlocked lit up and progress
+// towards the rest. Where the first y of the home logo leads.
+import "@fontsource-variable/fredoka/wght.css";
+import { getCollection } from "astro:content";
+import Base from "../layouts/Base.astro";
+import SectionHeader from "../components/SectionHeader.astro";
+import { achievements } from "../data/achievements";
+import { STAR } from "../scripts/achievements";
+
+// Goals that depend on the site itself rather than a number in data/achievements.ts.
+const projects = await getCollection("projects");
+const goals: Record<string, number> = { "all-projects": projects.length };
+const cards = achievements.map((a) => ({ ...a, goal: a.goal ?? goals[a.id] }));
+---
+
+<Base title="achievements" description="Achievements to unlock around dubbyy.com.">
+    <SectionHeader page="achievements" fixed={false} />
+    <main>
+        <h1 class="visually-hidden">Achievements</h1>
+        <p class="summary"><span class="got">0</span> of {cards.length} unlocked</p>
+        <ul class="list">
+            {
+                cards.map((a) => (
+                    <li class="achievement" data-id={a.id} data-goal={a.goal} data-title={a.title} data-description={a.description}>
+                        {/* Its own picture once it's drawn (image in data/achievements.ts), a star until then. */}
+                        {a.image ? (
+                            <img class="icon picture" src={a.image} alt="" />
+                        ) : (
+                            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
+                                <path d={STAR} />
+                            </svg>
+                        )}
+                        <div class="text">
+                            {/* Secret ones keep how to get them quiet until they're unlocked; the name always shows. */}
+                            <h2 class="title">{a.title}</h2>
+                            <p class="description">{a.secret ? "A secret achievement" : a.description}</p>
+                            {a.goal && a.goal > 1 && (
+                                <div class="progress">
+                                    <span class="bar">
+                                        <span class="fill" />
+                                    </span>
+                                    <span class="count">0/{a.goal}</span>
+                                </div>
+                            )}
+                            <p class="when" hidden />
+                        </div>
+                    </li>
+                ))
+            }
+        </ul>
+        <script is:inline data-astro-rerun>
+            // Lights up what's unlocked before the page is drawn, so it never flashes up all locked.
+            // Reads the cookie scripts/achievements.ts saves: { unlocked: { id: time }, progress: { id: count or list } }.
+            // (Anything still in localStorage from before the cookie is moved over by that script on the next unlock.)
+            {
+                let saved = {};
+                try {
+                    const cookie = document.cookie.split("; ").find((c) => c.startsWith("achievements="));
+                    const text = cookie ? decodeURIComponent(cookie.slice("achievements=".length)) : localStorage.getItem("achievements");
+                    saved = JSON.parse(text ?? "{}") ?? {};
+                } catch {}
+                const unlocked = saved.unlocked ?? {};
+                const progress = saved.progress ?? {};
+                const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+                let got = 0;
+                for (const card of document.querySelectorAll(".achievement")) {
+                    const id = card.dataset.id;
+                    if (unlocked[id]) {
+                        got++;
+                        card.classList.add("unlocked");
+                        card.querySelector(".title").textContent = card.dataset.title;
+                        card.querySelector(".description").textContent = card.dataset.description;
+                        card.querySelector(".progress")?.remove();
+                        // The exact moment, in the visitor's own time: "Unlocked 4 Nov 2026, 19:42:07".
+                        const when = new Date(unlocked[id]);
+                        const two = (n) => String(n).padStart(2, "0");
+                        const line = card.querySelector(".when");
+                        line.textContent =
+                            `Unlocked ${when.getDate()} ${MONTHS[when.getMonth()]} ${when.getFullYear()}, ` +
+                            `${two(when.getHours())}:${two(when.getMinutes())}:${two(when.getSeconds())}`;
+                        line.hidden = false;
+                        continue;
+                    }
+                    const bar = card.querySelector(".progress");
+                    if (!bar) continue;
+                    const done = progress[id];
+                    const steps = Math.min(Array.isArray(done) ? done.length : Number(done) || 0, Number(card.dataset.goal));
+                    bar.querySelector(".count").textContent = `${steps}/${card.dataset.goal}`;
+                    bar.querySelector(".fill").style.width = `${(steps / Number(card.dataset.goal)) * 100}%`;
+                }
+                document.querySelector(".summary .got").textContent = String(got);
+            }
+        </script>
+    </main>
+</Base>
+
+<style>
+    main {
+        min-height: 100dvh;
+        display: grid;
+        align-content: start;
+        justify-items: center;
+        gap: 20px;
+        padding: 112px 16px 64px;
+    }
+
+    .summary {
+        margin: 0;
+        font-family: "Fredoka Variable", var(--font-body);
+        font-weight: 600;
+        font-size: 22px;
+        color: var(--orange-dark);
+    }
+
+    .got {
+        color: var(--orange);
+    }
+
+    .list {
+        width: min(560px, 100%);
+        display: grid;
+        gap: 14px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+    }
+
+    /* White and rounded like the about page's cards. Locked ones are faded, with a grey star. */
+    .achievement {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 16px 20px;
+        border-radius: 22px;
+        background: #fff;
+        opacity: 0.6;
+    }
+
+    .achievement.unlocked {
+        opacity: 1;
+    }
+
+    .icon {
+        flex: none;
+        width: 44px;
+        height: 44px;
+        fill: #e3d4c5;
+    }
+
+    .unlocked .icon {
+        fill: var(--orange);
+    }
+
+    /* A drawn picture, tilted like on the banner; greyed out until it's unlocked. */
+    .picture {
+        width: 56px;
+        height: 56px;
+        object-fit: contain;
+        rotate: -10deg;
+        filter: grayscale(1);
+    }
+
+    .unlocked .picture {
+        filter: none;
+    }
+
+    .text {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .title {
+        margin: 0;
+        font-family: "Fredoka Variable", var(--font-body);
+        font-weight: 600;
+        font-size: 22px;
+        line-height: 1.2;
+        color: var(--orange-dark);
+    }
+
+    .unlocked .title {
+        color: var(--orange);
+    }
+
+    .description,
+    .when {
+        margin: 3px 0 0;
+        font-weight: 600;
+        font-size: 16px;
+        line-height: 1.35;
+    }
+
+    .when {
+        font-size: 14px;
+        color: var(--orange-dark);
+    }
+
+    .progress {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 8px;
+    }
+
+    .bar {
+        flex: 1;
+        height: 8px;
+        border-radius: 999px;
+        background: #f3e6d8;
+        overflow: hidden;
+    }
+
+    .fill {
+        display: block;
+        width: 0;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--orange-soft);
+    }
+
+    .count {
+        font-weight: 800;
+        font-size: 14px;
+        color: var(--orange-dark);
+    }
+</style>

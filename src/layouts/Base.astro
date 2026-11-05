@@ -4,24 +4,29 @@ import "@fontsource-variable/nunito/wght.css";
 import "@fontsource-variable/nunito/wght-italic.css";
 import "../styles/global.css";
 import { ClientRouter } from "astro:transitions";
+import AchievementToasts from "../components/AchievementToasts.astro";
 
 interface Props {
     title?: string;
     description?: string;
     // Leave this page with a hard cut instead of a slide (for pages with no fixed address, like the 404).
     cut?: boolean;
+    // Show unlocked achievements popping up. Off for pages that shouldn't have them (like /y);
+    // achievements unlocked there are still saved, just without the card.
+    achievements?: boolean;
 }
 
 const {
     title = "dubbyy",
     description = "Chidubem (Dubby) Uzoukwu's home for projects, experiments and things I've been up to.",
     cut = false,
+    achievements = true,
 } = Astro.props;
 const fullTitle = title === "dubbyy" ? title : `${title} · dubbyy`;
 ---
 
 <!doctype html>
-<html lang="en" data-cut={cut ? "" : undefined}>
+<html lang="en" data-cut={cut ? "" : undefined} data-no-achievements={achievements ? undefined : ""}>
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -32,16 +37,35 @@ const fullTitle = title === "dubbyy" ? title : `${title} · dubbyy`;
         <meta property="og:type" content="website" />
         <meta property="og:title" content={fullTitle} />
         <meta property="og:description" content={description} />
+        <script is:inline>
+            // The visitor's settings (scripts/settings.ts) onto <html> before anything is drawn, so a page never
+            // flashes up the wrong way (secrets showing, things moving). Reads the same cookie: keep the two in step.
+            {
+                let settings = {};
+                try {
+                    const cookie = document.cookie.split("; ").find((c) => c.startsWith("settings="));
+                    if (cookie) settings = JSON.parse(decodeURIComponent(cookie.slice("settings=".length)));
+                    // From before the settings page: the home page's toggle kept this in localStorage.
+                    else if (localStorage.getItem("drawings") === "off") settings.secrets = false;
+                } catch {}
+                const html = document.documentElement;
+                if (settings.animations === false) html.dataset.motion = "off";
+                if (settings.secrets === false) html.dataset.secrets = "off";
+                if (settings.physics === false) html.dataset.physics = "off";
+            }
+        </script>
         <ClientRouter />
     </head>
 
     <body>
         <slot />
+        <AchievementToasts />
 
         <script>
             import { navigate } from "astro:transitions/client";
             import { screenIndex, neighbours, isSection, isCut } from "../data/screens";
             import { enableSwipe } from "../scripts/swipe";
+            import { applySettings } from "../scripts/settings";
 
             // Pick the swipe direction from where the two pages sit in data/screens.ts.
             // Pages that aren't screens (e.g. a single project) fall back to the browser's history direction.
@@ -68,12 +92,15 @@ const fullTitle = title === "dubbyy" ? title : `${title} · dubbyy`;
                 if (isCut(e.from.pathname) || isCut(e.to.pathname)) slide = "cut";
                 // ...as do pages that ask for it, like the 404 (<Base cut>).
                 if (document.documentElement.hasAttribute("data-cut")) slide = "cut";
+                // With animations off in the settings, every page just cuts in.
+                if (document.documentElement.dataset.motion === "off") slide = "cut";
                 swiped = false;
                 document.documentElement.dataset.slide = slide;
             });
-            // The swap copies <html>'s attributes from the new page, so put the direction back.
+            // The swap copies <html>'s attributes from the new page, so put the direction and the settings back.
             document.addEventListener("astro:after-swap", () => {
                 document.documentElement.dataset.slide = slide;
+                applySettings();
             });
 
             // Arrow keys and sideways touch swipes move between neighbouring screens.
