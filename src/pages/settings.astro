@@ -1,0 +1,691 @@
+---
+// Settings: the screen to the right of home, following the "settings" frames in Figma. A three-stop slider for
+// animations, ticks for physics and secrets (all in scripts/settings.ts), and a button that resets the
+// achievements after asking. Everything is saved as soon as it's changed.
+import "@fontsource-variable/fredoka/wght.css";
+import Base from "../layouts/Base.astro";
+import ScreenArrows from "../components/ScreenArrows.astro";
+// Hand-drawn, at 2.5 image px per design px like the project outlines (design/shape-templates/README.md).
+import sliderOutline from "../assets/settings/slider-outline.png";
+import sliderFill from "../assets/settings/slider-fill.png";
+import sliderKnob from "../assets/settings/slider-knob.png";
+import tickOn from "../assets/settings/checkbox-checked.png";
+import tickOff from "../assets/settings/checkbox-unchecked.png";
+
+// One tick box per setting, in order. `name` is the setting in scripts/settings.ts.
+const ticks = [
+    { name: "physics", title: "Physics" },
+    { name: "secrets", title: "Show Secrets" },
+];
+---
+
+<Base title="settings">
+    <main>
+        <h1>settings</h1>
+
+        <div class="settings">
+            <div class="row">
+                <span class="name" id="animations-name">Animations</span>
+                <div class="slider" data-level="full">
+                    <span class="level" aria-hidden="true">full</span>
+                    {/* The drawn track: its inside in two colours (the fill drawing used as a mask), dark, then
+                        light cut off at the knob so the lit part follows it; the drawn outline over both. */}
+                    <span class="track" style={`--fill: url(${sliderFill.src})`} aria-hidden="true">
+                        <span class="inside dark"></span>
+                        <span class="inside lit"></span>
+                        <img class="outline" src={sliderOutline.src} alt="" draggable="false" />
+                    </span>
+                    <span class="knob" aria-hidden="true">
+                        <img class="art" src={sliderKnob.src} alt="" draggable="false" />
+                    </span>
+                    {/* For the keyboard and screen readers; pointer dragging is handled by the script below. */}
+                    <input
+                        type="range"
+                        min="0"
+                        max="2"
+                        step="1"
+                        value="2"
+                        aria-labelledby="animations-name"
+                        aria-valuetext="full"
+                    />
+                </div>
+            </div>
+
+            {
+                ticks.map(({ name, title }) => (
+                    <label class="row">
+                        <span class="name">{title}</span>
+                        <span class="tick">
+                            <input type="checkbox" data-setting={name} checked />
+                            {/* The drawn box, empty or ticked; the real checkbox sits invisibly over it. */}
+                            <img class="art off" src={tickOff.src} alt="" draggable="false" />
+                            <img class="art on" src={tickOn.src} alt="" draggable="false" />
+                        </span>
+                    </label>
+                ))
+            }
+
+            <button class="reset" type="button">Reset Achievements?</button>
+        </div>
+
+        <dialog class="confirm" aria-labelledby="confirm-title">
+            <form method="dialog">
+                <h2 id="confirm-title">Are you sure?</h2>
+                <div class="choices">
+                    <button class="back" value="back" autofocus>go back</button>
+                    <button class="yes" value="reset">reset</button>
+                </div>
+            </form>
+        </dialog>
+
+        <script is:inline data-astro-rerun>
+            // Each control shows its setting before the page is drawn, so none jumps as it appears.
+            // Reads the cookie scripts/settings.ts saves: keep the two in step.
+            {
+                let settings = {};
+                try {
+                    const cookie = document.cookie.split("; ").find((c) => c.startsWith("settings="));
+                    if (cookie) settings = JSON.parse(decodeURIComponent(cookie.slice("settings=".length)));
+                    else if (localStorage.getItem("drawings") === "off") settings.secrets = false;
+                } catch {}
+                const levels = ["off", "reduced", "full"];
+                let level = settings.animations;
+                if (level === true || level === undefined) level = "full";
+                if (level === false) level = "off";
+                if (!levels.includes(level)) level = "full";
+                const slider = document.querySelector(".slider");
+                const range = slider.querySelector("input");
+                slider.dataset.level = level;
+                slider.querySelector(".level").textContent = level;
+                range.value = String(levels.indexOf(level));
+                range.setAttribute("aria-valuetext", level);
+                for (const box of document.querySelectorAll(".tick input")) {
+                    box.checked = settings[box.dataset.setting] !== false;
+                }
+            }
+        </script>
+    </main>
+    <ScreenArrows />
+</Base>
+
+<script>
+    import { getSettings, setSetting, MOTION_LEVELS } from "../scripts/settings";
+    import { resetAchievements } from "../scripts/achievements";
+
+    // The slider, in the Figma track's units (442 wide). Each stop is a magnet: dragging pulls the knob toward the
+    // pointer, but the nearest stop holds it back, more the further it strays. Once the pointer is nearer the next
+    // stop, that one wins and the knob shoots over to it, speeding up as it gets close, and lands with a clack.
+    // Let go and its stop pulls it back the same way.
+    const STOPS = [10, 210, 432];
+    const TURNS = [0, 120, 240]; // the knob rolls along: one third of a turn per stop, so it looks the same on each
+    const PULL = 65; // the furthest the knob strays from its stop
+    const PULL_REACH = 50; // how quickly it gets there as the pointer moves away
+    // How long a jump to a stop takes: quick, a little longer for longer jumps (ms).
+    const jumpTime = (distance: number) => Math.min(170, 80 + distance * 0.35);
+
+    const nearestStop = (at: number) =>
+        STOPS.reduce((best, stop, i) => (Math.abs(stop - at) < Math.abs(STOPS[best] - at) ? i : best), 0);
+
+    // Where the knob sits with the pointer at `at`: its stop, pulled part of the way toward the pointer.
+    const pulled = (stop: number, at: number) => {
+        const d = at - STOPS[stop];
+        return STOPS[stop] + Math.sign(d) * PULL * (1 - Math.exp(-Math.abs(d) / PULL_REACH));
+    };
+
+    // The knob's turn at `x`, in a straight line between the stops (and on past the ends).
+    const turnAt = (x: number) => {
+        const i = x < STOPS[1] ? 0 : 1;
+        return TURNS[i] + ((x - STOPS[i]) / (STOPS[i + 1] - STOPS[i])) * (TURNS[i + 1] - TURNS[i]);
+    };
+
+    document.addEventListener("astro:page-load", () => {
+        const page = document.querySelector(".settings");
+        if (!page) return;
+
+        const slider = page.querySelector<HTMLElement>(".slider")!;
+        const range = slider.querySelector("input")!;
+        const label = slider.querySelector(".level")!;
+
+        let stop = MOTION_LEVELS.indexOf(getSettings().animations);
+        const knob = slider.querySelector<HTMLElement>(".knob .art")!;
+        let x = STOPS[stop]; // where the knob is drawn
+        let jump: { from: number; to: number; start: number; time: number } | null = null;
+        let frame = 0;
+        let dragging = false;
+
+        const draw = () => {
+            slider.style.setProperty("--x", String(x));
+            slider.style.setProperty("--turn", String(turnAt(x)));
+        };
+        const show = () => {
+            const level = MOTION_LEVELS[stop];
+            slider.dataset.level = level;
+            label.textContent = level;
+            range.value = String(stop);
+            range.setAttribute("aria-valuetext", level);
+        };
+        const save = () => {
+            if (getSettings().animations !== MOTION_LEVELS[stop]) setSetting("animations", MOTION_LEVELS[stop]);
+        };
+
+        // Straight there: for the pointer pulling it, the keyboard, and animations switched off. (At "reduced"
+        // the quick jump still plays: it's small, and the slider feels broken without it.)
+        const place = (to: number) => {
+            cancelAnimationFrame(frame);
+            frame = 0;
+            jump = null;
+            x = to;
+            draw();
+        };
+        const still = () =>
+            document.documentElement.dataset.motion === "off" || matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+        const tick = (now: number) => {
+            if (!jump) return;
+            const t = Math.min(1, (now - jump.start) / jump.time);
+            x = jump.from + (jump.to - jump.from) * t * t * t; // ease-in-cubic: pulled ever faster, like a magnet
+            draw();
+            if (t < 1) {
+                frame = requestAnimationFrame(tick);
+                return;
+            }
+            jump = null;
+            frame = 0;
+            // The clack as it lands.
+            knob.classList.remove("clack");
+            void knob.getBoundingClientRect();
+            knob.classList.add("clack");
+        };
+        const jumpTo = (to: number) => {
+            if (still()) return place(to);
+            jump = { from: x, to, start: performance.now(), time: jumpTime(Math.abs(to - x)) };
+            if (!frame) frame = requestAnimationFrame(tick);
+        };
+
+        show();
+        draw();
+
+        // Dragging (or just pressing somewhere on the track).
+        const follow = (e: PointerEvent) => {
+            const box = slider.getBoundingClientRect();
+            const at = ((e.clientX - box.left) / box.width) * 442;
+            const nearest = nearestStop(at);
+            const to = pulled(nearest, at);
+            if (nearest !== stop) {
+                stop = nearest;
+                show();
+                jumpTo(to);
+            } else if (jump) {
+                // Mid-jump, it carries on, toward wherever the pointer now holds it.
+                jump.to = to;
+            } else place(to);
+        };
+        slider.addEventListener("pointerdown", (e) => {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            dragging = true;
+            slider.classList.add("dragging");
+            slider.setPointerCapture(e.pointerId);
+            follow(e);
+        });
+        slider.addEventListener("pointermove", (e) => {
+            if (dragging) follow(e);
+        });
+        const release = () => {
+            if (!dragging) return;
+            dragging = false;
+            slider.classList.remove("dragging");
+            jumpTo(STOPS[stop]);
+            save();
+        };
+        slider.addEventListener("pointerup", release);
+        slider.addEventListener("pointercancel", release);
+        // A sideways drag here moves the knob, not the whole page to the next screen (scripts/swipe.ts).
+        slider.addEventListener("touchstart", (e) => e.stopPropagation(), { passive: true });
+
+        // Arrow keys, through the hidden range input. Straight there: key presses shouldn't wait on an animation.
+        range.addEventListener("input", () => {
+            stop = Number(range.value);
+            show();
+            place(STOPS[stop]);
+            save();
+        });
+
+        for (const box of page.querySelectorAll<HTMLInputElement>(".tick input")) {
+            const name = box.dataset.setting as "physics" | "secrets";
+            box.checked = getSettings()[name];
+            box.addEventListener("change", () => setSetting(name, box.checked));
+        }
+
+        // Resetting can't be undone, so it asks first.
+        const dialog = document.querySelector<HTMLDialogElement>(".confirm")!;
+        page.querySelector(".reset")!.addEventListener("click", () => {
+            dialog.returnValue = "";
+            dialog.showModal();
+        });
+        // A click on the dimmed page around the box is a "go back".
+        dialog.addEventListener("click", (e) => {
+            if (e.target === dialog) dialog.close();
+        });
+        dialog.addEventListener("close", () => {
+            if (dialog.returnValue === "reset") resetAchievements();
+        });
+    });
+</script>
+
+<style>
+    /* Sizes are the Figma frame's, in --u: one Figma pixel, at 1.25 of the site's --px (0.83px at 1280 wide,
+       1.25px at 1920). Phones shrink it until the slider fits. */
+    main {
+        --u: calc(1.25 * var(--px));
+        --brown: #613305;
+        /* The drawings' unit: drawn a bit too big, so they're shown at 0.8 of the page's size. */
+        --a: calc(0.8 * var(--u));
+        --ease: cubic-bezier(0.23, 1, 0.32, 1); /* ease-out-quint */
+        min-height: 100dvh;
+        display: grid;
+        align-content: start;
+        justify-items: center;
+        padding: calc(66 * var(--u)) clamp(56px, 12vw, 160px) 64px;
+    }
+
+    h1 {
+        margin: 0;
+        font-family: "Fredoka Variable", var(--font-body);
+        font-weight: 600;
+        font-size: calc(96 * var(--u));
+        line-height: 1;
+        color: var(--orange);
+    }
+
+    .settings {
+        display: grid;
+        justify-items: center;
+        gap: calc(19 * var(--u));
+        /* Clear of the heading, with room for the level's pill above the slider. */
+        margin-top: calc(70 * var(--u));
+    }
+
+    /* A name, then its control, the pair centred on the page. */
+    .row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: calc(28 * var(--u));
+    }
+
+    /* The slider row is shorter than the tick rows, so it gets a little more below. */
+    .row:first-child {
+        margin-bottom: calc(7 * var(--u));
+    }
+
+    .name {
+        font-family: "Fredoka Variable", var(--font-body);
+        font-weight: 500;
+        font-size: calc(35 * var(--u));
+        line-height: 1.2;
+        color: var(--brown);
+    }
+
+    label.row {
+        cursor: pointer;
+    }
+
+    /* The animations slider: 442 × 20 in Figma, with stops at 10, 210 and 432 along it. --x is where the knob
+       is and --turn how far it has rolled (both set while it moves; these are where each level rests). */
+    .slider {
+        --x: 10;
+        --turn: 0;
+        position: relative;
+        width: calc(442 * var(--a));
+        height: calc(20 * var(--a));
+        cursor: grab;
+        touch-action: none;
+        user-select: none;
+    }
+
+    .slider[data-level="reduced"] {
+        --x: 210;
+        --turn: 120;
+    }
+
+    .slider[data-level="full"] {
+        --x: 432;
+        --turn: 240;
+    }
+
+    .slider.dragging {
+        cursor: grabbing;
+    }
+
+    /* A bigger area to grab than the thin track. */
+    .slider::before {
+        content: "";
+        position: absolute;
+        inset: calc(-25 * var(--u)) calc(-20 * var(--u));
+    }
+
+    /* The drawings are 1132 × 72 (452.8 × 28.8 design px); their stops line up with the slider's when they
+       start 4.4 before it, and they're centred on it top to bottom. */
+    .track {
+        position: absolute;
+        top: calc(-4.4 * var(--a));
+        left: calc(-4.4 * var(--a));
+        width: calc(452.8 * var(--a));
+        height: calc(28.8 * var(--a));
+    }
+
+    .track > * {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+    }
+
+    /* The inside of the track, in the fill drawing's shape. */
+    .inside {
+        mask: var(--fill) 0 0 / 100% 100% no-repeat;
+        background: var(--orange-dark);
+    }
+
+    /* Light up to the knob, dark past it: the light copy is cut off at the knob's middle. */
+    .inside.lit {
+        background: var(--orange-mid);
+        clip-path: inset(0 calc((452.8 - 4.4 - var(--x)) * var(--a)) 0 0);
+    }
+
+    .outline {
+        user-select: none;
+    }
+
+    /* A rounded triangle, centred on --x and rolled by --turn (from the -20.33° it has in Figma). */
+    .knob {
+        position: absolute;
+        top: 50%;
+        left: 0;
+        width: calc(70 * var(--a));
+        height: calc(70 * var(--a));
+        translate: calc(var(--x) * var(--a) - 50%) -50%;
+        rotate: calc(var(--turn) * 1deg - 20.33deg);
+        pointer-events: none;
+        will-change: translate, rotate;
+    }
+
+    /* The drawn triangle (138 × 123, 55.2 × 49.2 design px), placed so its middle is the box's middle,
+       which is what it turns about. */
+    .knob .art {
+        position: absolute;
+        top: calc(2.6 * var(--a));
+        left: calc(7.8 * var(--a));
+        width: calc(55.2 * var(--a));
+        height: calc(49.2 * var(--a));
+        user-select: none;
+        transition: scale 150ms var(--ease);
+    }
+
+    /* The level's name in a pill above the knob, only while the slider is hovered, dragged or focused. */
+    .level {
+        position: absolute;
+        bottom: calc(100% + 27 * var(--u));
+        left: 0;
+        translate: calc(var(--x) * var(--a) - 50%) 0;
+        height: calc(41 * var(--u));
+        display: grid;
+        place-items: center;
+        padding: 0 calc(20 * var(--u));
+        border: calc(5 * var(--u)) solid var(--orange-mid);
+        border-radius: 999px;
+        background: var(--bg);
+        font-weight: 700;
+        font-size: calc(24 * var(--u));
+        line-height: 1;
+        color: var(--brown);
+        white-space: nowrap;
+        pointer-events: none;
+        opacity: 0;
+        scale: 0.9;
+        transform-origin: bottom;
+        transition:
+            opacity 150ms var(--ease),
+            scale 150ms var(--ease);
+    }
+
+    .slider.dragging .level,
+    .slider:has(input:focus-visible) .level {
+        opacity: 1;
+        scale: 1;
+    }
+
+    .slider.dragging .knob .art {
+        scale: 1.08;
+    }
+
+    /* Landing on a stop: squashed for a moment by the hit. */
+    .knob .art.clack {
+        animation: clack 160ms var(--ease);
+    }
+
+    @keyframes clack {
+        from {
+            scale: 0.86;
+        }
+    }
+
+    /* The real range input, out of the pointer's way: it's there for the keyboard and screen readers. */
+    .slider input {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .slider:has(input:focus-visible) .knob .art {
+        outline: 3px solid var(--orange);
+        outline-offset: 4px;
+        border-radius: 6px;
+    }
+
+    /* Tick boxes: the drawn box, with its tick spilling out of it when it's on. The real checkbox is invisible
+       over the 53 × 53 box. */
+    .tick {
+        position: relative;
+        width: calc(53 * var(--a));
+        height: calc(53 * var(--a));
+        flex: none;
+        transition: scale 150ms var(--ease);
+    }
+
+    .tick input {
+        position: relative;
+        z-index: 1;
+        appearance: none;
+        display: block;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        cursor: pointer;
+    }
+
+    /* The drawings are 191 × 162 (76.4 × 64.8 design px), with the box in the bottom left and room above and
+       to the right for the tick: these line the drawn box up with the 53 × 53 one. */
+    .tick .art {
+        position: absolute;
+        left: calc(-1.5 * var(--a));
+        top: calc(-11.5 * var(--a));
+        width: calc(76.4 * var(--a));
+        height: calc(64.8 * var(--a));
+        max-width: none;
+        pointer-events: none;
+        user-select: none;
+        transition: filter 150ms ease;
+    }
+
+    .tick input:checked ~ .off,
+    .tick input:not(:checked) ~ .on {
+        visibility: hidden;
+    }
+
+    .tick:has(input:focus-visible) {
+        outline: 3px solid var(--orange);
+        outline-offset: 4px;
+        border-radius: 6px;
+    }
+
+    button {
+        border: 0;
+        background: none;
+        font: inherit;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        transition:
+            background-color 150ms ease,
+            border-color 150ms ease,
+            scale 150ms var(--ease);
+    }
+
+    .reset {
+        width: calc(431 * var(--u));
+        height: calc(70 * var(--u));
+        /* Further down than the gap between the rows. */
+        margin-top: calc(29 * var(--u));
+        border: calc(5 * var(--u)) solid var(--orange);
+        border-radius: calc(20 * var(--u));
+        background: var(--bg);
+        font-family: "Fredoka Variable", var(--font-body);
+        font-weight: 500;
+        font-size: calc(35 * var(--u));
+        line-height: 1;
+        color: var(--brown);
+        white-space: nowrap;
+        transition:
+            background-color 150ms ease,
+            scale 150ms var(--ease);
+    }
+
+    /* "Are you sure?": a cream box over the dimmed page. */
+    .confirm {
+        width: calc(400 * var(--u));
+        max-width: calc(100vw - 32px);
+        padding: calc(26 * var(--u)) 0 calc(27 * var(--u));
+        border: 0;
+        border-radius: calc(40 * var(--u));
+        background: var(--bg);
+        color: var(--brown);
+    }
+
+    .confirm::backdrop {
+        background: rgb(0 0 0 / 0.36);
+    }
+
+    .confirm h2 {
+        margin: 0;
+        font-family: "Fredoka Variable", var(--font-body);
+        font-weight: 500;
+        font-size: calc(35 * var(--u));
+        line-height: 1.2;
+        text-align: center;
+    }
+
+    .choices {
+        display: flex;
+        justify-content: center;
+        gap: calc(13 * var(--u));
+        margin-top: calc(13 * var(--u));
+    }
+
+    .choices button {
+        width: calc(140 * var(--u));
+        height: calc(50 * var(--u));
+        border-radius: 999px;
+        font-weight: 700;
+        font-size: calc(24 * var(--u));
+        line-height: 1;
+    }
+
+    .back {
+        border: calc(5 * var(--u)) solid var(--orange);
+        color: var(--brown);
+    }
+
+    .yes {
+        background: #f95c5c;
+        color: var(--bg);
+    }
+
+    /* Hovering warms things up a little; pressing pushes them in. */
+    @media (hover: hover) and (pointer: fine) {
+        .slider:hover .level {
+            opacity: 1;
+            scale: 1;
+        }
+
+        .slider:hover .knob .art {
+            scale: 1.08;
+        }
+
+        /* Sinks in a little, like a key half pressed... */
+        .reset:hover {
+            background: #ffe2c4;
+            scale: 0.97;
+        }
+
+        /* ...and the tick boxes too, a touch less (box and tick together). */
+        .tick:hover {
+            scale: 0.98;
+        }
+
+        .tick:hover .art {
+            filter: brightness(1.08);
+        }
+
+        .back:hover {
+            background: #ffe2c4;
+        }
+
+        .yes:hover {
+            background: #ec4545;
+        }
+    }
+
+    button:active {
+        scale: 0.97;
+    }
+
+    /* All the way in when pressed. */
+    .reset:active {
+        scale: 0.94;
+    }
+
+    .tick:active {
+        scale: 0.96;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .knob .art,
+        .knob .art.clack,
+        .level,
+        .tick,
+        .tick input,
+        button {
+            transition: none;
+        }
+    }
+
+    /* Phones: the slider goes under its name, and everything shrinks until it fits across the screen. */
+    @media (max-width: 600px) {
+        main {
+            /* Leaves room either side for half the knob, which sticks out past the track's ends. */
+            --u: min(1px, (100vw - 32px) / 492);
+            padding-inline: 16px;
+        }
+
+        /* Room for the level's pill between the name and the slider. */
+        .slider {
+            margin-top: calc(72 * var(--u));
+        }
+    }
+</style>

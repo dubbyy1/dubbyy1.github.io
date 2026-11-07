@@ -20,12 +20,18 @@ import taglinesFile from "../data/taglines.txt?raw";
 
 // The line under the logo is one of these, picked at random on every visit: src/data/taglines.txt,
 // one tagline per line (blank lines are skipped). *Stars* around words make them bold.
+// "| 3" at the end of a line makes it come up 3 times as often as a line without one (which counts as 1);
+// "| 0.5" half as often, "| 0" never. (A "|", so a line can still end in a number of its own, like "est. 2010".)
 const escape = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const taglines = taglinesFile
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
-    .map((line) => escape(line).replace(/\*([^*]+)\*/g, "<b>$1</b>"));
+    .map((line) => {
+        const weighted = line.match(/^(.*?)\s*\|\s*(\d+(?:\.\d+)?)$/);
+        const text = weighted ? weighted[1] : line;
+        return { html: escape(text).replace(/\*([^*]+)\*/g, "<b>$1</b>"), weight: weighted ? Number(weighted[2]) : 1 };
+    });
 ---
 
 <Base>
@@ -49,9 +55,9 @@ const taglines = taglinesFile
             <h1><Logo /></h1>
             <p class="tagline">
                 {
-                    taglines.map((line, i) => (
-                        <span hidden={i !== 0}>
-                            <i set:html={line} />
+                    taglines.map(({ html, weight }, i) => (
+                        <span hidden={i !== 0} data-weight={weight}>
+                            <i set:html={html} />
                         </span>
                     ))
                 }
@@ -62,12 +68,18 @@ const taglines = taglinesFile
                 {
                     const tagline = document.querySelector(".tagline");
                     const lines = tagline.children;
-                    // Shows a random line other than the one numbered `not`, and remembers it.
+                    // Shows a random line other than the one numbered `not`, and remembers it. Lines with a bigger
+                    // weight (data-weight, from the "| 3" in taglines.txt) come up more often.
                     // Never the same line twice in a row, so coming back (or clicking) always looks different.
                     const show = (not) => {
-                        const hasLast = not >= 0 && not < lines.length;
-                        let pick = Math.floor(Math.random() * (hasLast ? lines.length - 1 : lines.length));
-                        if (hasLast && pick >= not) pick++;
+                        const weights = [...lines].map((line, i) => (i === not ? 0 : Number(line.dataset.weight)));
+                        const total = weights.reduce((a, b) => a + b, 0);
+                        let pick = 0;
+                        if (total > 0) {
+                            let r = Math.random() * total;
+                            pick = weights.findIndex((w) => (r -= w) < 0);
+                            if (pick < 0) pick = weights.findLastIndex((w) => w > 0); // a rounding slip at the very end
+                        } else if (not >= 0 && not < lines.length) pick = not; // nothing else can come up
                         try { sessionStorage.setItem("tagline", String(pick)); } catch {}
                         for (let i = 0; i < lines.length; i++) lines[i].hidden = i !== pick;
                         return pick;
@@ -81,9 +93,9 @@ const taglines = taglinesFile
                     // and as deep as the new one (they can be one or two lines), so after the turn the new
                     // line is the front. Both faces turn about the box's middle, which moves from half the
                     // old height down to half the new height so the text stays lined up at the top.
-                    // Still, if animations are off in the settings or the device asks for less motion.
+                    // Still, if animations are turned down in the settings or the device asks for less motion.
                     const reduceMotion = () =>
-                        document.documentElement.dataset.motion === "off" ||
+                        !!document.documentElement.dataset.motion ||
                         matchMedia("(prefers-reduced-motion: reduce)").matches;
                     const TURN = { duration: 450, easing: "cubic-bezier(0.65, 0, 0.35, 1)" }; // ease-in-out-cubic
                     // A face whose own turning point is (y, z) from its top, turned by `angle` about the box's
@@ -205,6 +217,11 @@ const taglines = taglinesFile
         scale: 1.08;
     }
 
+    /* How much bigger than the design the hero is, and the drawings beside the arrows and in the corner with it. */
+    .home {
+        --hero-scale: 1.2;
+    }
+
     main {
         min-height: 100dvh;
         display: grid;
@@ -217,8 +234,9 @@ const taglines = taglinesFile
     .hero {
         container-type: inline-size;
         position: relative;
-        /* 599 px on a 1920-wide screen and the same share of any other (--px in global.css). */
-        width: min(calc(599 * var(--px)), 100%);
+        /* The design's 599 px on a 1920-wide screen, times --hero-scale, and the same share of any other
+           (--px in global.css). */
+        width: min(calc(599 * var(--hero-scale) * var(--px)), 100%);
         /* Logo plus the icons that hang below it. */
         aspect-ratio: 599 / 247;
         /* The design sits the group slightly below centre. */
@@ -291,27 +309,36 @@ const taglines = taglinesFile
         z-index: -1;
     }
 
+    /* Placed as in the design, then grown with the hero (--hero-scale) from the point that touches what they're
+       next to, so they stay put against it: the arrow, or the screen's corner. */
     .doodles .doodle {
         position: fixed;
+        scale: var(--hero-scale);
     }
 
+    /* Beside the left arrow: grows from its middle left. */
     .left {
         left: calc(var(--arrow-inset) + var(--arrow-size) * (0.5 + 0.519));
         top: calc(var(--arrow-top) - var(--arrow-size) * 0.476);
         width: calc(var(--arrow-size) * 1.227);
+        transform-origin: left center;
     }
 
+    /* Over the right arrow: grows from its bottom right. */
     .right {
         right: calc(var(--arrow-inset) + var(--arrow-size) * (0.5 - 0.795));
         top: calc(var(--arrow-top) - var(--arrow-size) * 1.204);
         width: calc(var(--arrow-size) * 1.612);
+        transform-origin: right bottom;
     }
 
-    /* From the mockup: 330 of 3840 wide, 52 in from the top and right. */
+    /* 52 in from the top and right on the 3840-wide mockup. Grows from the corner. Its 330px file at the site's
+       drawing scale (half a --px per pixel, once grown by --hero-scale), like the other doodles. */
     .corner {
         top: clamp(8px, 1.354vw, 30px);
         right: clamp(8px, 1.354vw, 30px);
-        width: clamp(74px, 8.59vw, 193px);
+        width: calc(330 * 0.5 / 1.2 * var(--px));
+        transform-origin: right top;
     }
 
     /* Narrower screens: the logo fills the space beside the left arrow, so its label goes underneath. */
@@ -319,11 +346,21 @@ const taglines = taglinesFile
         .left {
             left: calc(var(--arrow-inset) + 4px);
             top: calc(var(--arrow-top) + var(--arrow-size) * 0.6);
+            transform-origin: left top;
         }
     }
 
-    /* Phones: the arrows hug the edges, so the labels sit under / over them instead of beside. */
+    /* Phones: the arrows hug the edges, so the labels sit under / over them instead of beside. The hero just
+       fills the width there, so they stay their own size. */
     @media (max-width: 600px) {
+        .doodles .doodle {
+            scale: none;
+        }
+
+        .corner {
+            width: 74px;
+        }
+
         .left {
             left: 6px;
             top: calc(var(--arrow-top) + 50px);

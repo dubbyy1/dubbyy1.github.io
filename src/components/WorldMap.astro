@@ -40,6 +40,10 @@ const pins = places.map((place) => {
     const [x, y] = projection([place.coords[1], place.coords[0]]) ?? [0, 0];
     return { name: place.name, left: (x / WIDTH) * 100, top: (y / height) * 100 };
 });
+
+// The ‹ › arrows: the same L shape as the screen arrows (components/ScreenArrows.astro), rotated, as on /me.
+const arrow =
+    "M0 62.468V4C0 1.79086 1.79086 0 4 0H21.4558C23.665 0 25.4558 1.79086 25.4558 4V35.8808C25.4558 38.09 27.2467 39.8808 29.4559 39.8808H59.6396C61.8488 39.8808 63.6396 41.6717 63.6396 43.8808V62.468C63.6396 64.6772 61.8488 66.468 59.6396 66.468H4C1.79086 66.468 0 64.6772 0 62.468Z";
 ---
 
 <div class="world-map">
@@ -60,10 +64,25 @@ const pins = places.map((place) => {
             ))
         }
     </div>
+    {/* The place's name between ‹ › buttons that step through the places, for ones whose pins are hard to hit. */}
+    <div class="head">
+        <button class="step prev" type="button" aria-label="Previous place">
+            <svg viewBox="0 0 63.6396 66.468" aria-hidden="true"><path d={arrow} /></svg>
+        </button>
+        {
+            places.map((place, i) => (
+                <span class="pill" hidden={i !== 0}>
+                    {place.name}
+                </span>
+            ))
+        }
+        <button class="step next" type="button" aria-label="Next place">
+            <svg viewBox="0 0 63.6396 66.468" aria-hidden="true"><path d={arrow} /></svg>
+        </button>
+    </div>
     {
         places.map((place, i) => (
             <div class="place" hidden={i !== 0}>
-                <span class="pill">{place.name}</span>
                 <p set:html={caption(place.caption)} />
                 {place.image && <Image src={place.image} alt={place.alt ?? ""} width={720} loading="lazy" />}
             </div>
@@ -72,17 +91,71 @@ const pins = places.map((place) => {
 </div>
 
 <script>
-    // Picking a pin shows its place's card (they're in the same order).
+    import { collect } from "../scripts/achievements";
+
+    // Picking a pin (or stepping with ‹ ›) shows its place's name and card (they're all in the same order).
+    // Each place's card seen counts towards the "visit every location" achievement (data/achievements.ts).
+    // Some pins sit nearly on top of each other (Dublin and Delphi), so the pointer doesn't go by which pin's
+    // tap area is on top: a click or tap on the map picks the pin whose middle is nearest, if one is close
+    // enough, and hovering lights up that same pin. The keyboard still uses the pins themselves.
+    const REACH = 20; // px from a pin's middle that still counts as pointing at it
+
     document.addEventListener("astro:page-load", () => {
-        for (const map of document.querySelectorAll<HTMLElement>(".world-map")) {
-            const pins = [...map.querySelectorAll<HTMLButtonElement>(".pin")];
-            const cards = [...map.querySelectorAll<HTMLElement>(".place")];
-            pins.forEach((pin, i) =>
-                pin.addEventListener("click", () => {
-                    pins.forEach((p, j) => p.setAttribute("aria-pressed", String(j === i)));
-                    cards.forEach((card, j) => (card.hidden = j !== i));
-                }),
-            );
+        for (const root of document.querySelectorAll<HTMLElement>(".world-map")) {
+            const map = root.querySelector<HTMLElement>(".map")!;
+            const pins = [...root.querySelectorAll<HTMLButtonElement>(".pin")];
+            const pills = [...root.querySelectorAll<HTMLElement>(".head .pill")];
+            const cards = [...root.querySelectorAll<HTMLElement>(".place")];
+            const names = pins.map((pin) => pin.getAttribute("aria-label")!);
+            const visit = (i: number) => collect("all-places", names[i], names);
+            let current = 0;
+            const choose = (i: number) => {
+                current = (i + pins.length) % pins.length;
+                pins.forEach((p, j) => p.setAttribute("aria-pressed", String(j === current)));
+                pills.forEach((pill, j) => (pill.hidden = j !== current));
+                cards.forEach((card, j) => (card.hidden = j !== current));
+                visit(current);
+            };
+
+            // The pin nearest a point on the screen, if one's within REACH.
+            const nearest = (x: number, y: number) => {
+                let best = -1;
+                let bestDistance = REACH;
+                pins.forEach((pin, i) => {
+                    const box = pin.getBoundingClientRect();
+                    const d = Math.hypot(x - (box.left + box.width / 2), y - (box.top + box.height / 2));
+                    if (d <= bestDistance) {
+                        best = i;
+                        bestDistance = d;
+                    }
+                });
+                return best;
+            };
+            const near = (i: number) => {
+                pins.forEach((p, j) => p.classList.toggle("near", j === i));
+                map.classList.toggle("pointing", i >= 0);
+            };
+
+            map.addEventListener("click", (e) => {
+                // A pin "clicked" from the keyboard (Enter or Space) has no pointer position: that pin it is.
+                const pin = (e.target as Element).closest<HTMLButtonElement>(".pin");
+                if (pin && e.detail === 0) return choose(pins.indexOf(pin));
+                const i = nearest(e.clientX, e.clientY);
+                if (i >= 0) choose(i);
+            });
+            map.addEventListener("pointermove", (e) => near(e.pointerType === "mouse" ? nearest(e.clientX, e.clientY) : -1));
+            map.addEventListener("pointerleave", () => near(-1));
+
+            root.querySelector(".prev")!.addEventListener("click", () => choose(current - 1));
+            root.querySelector(".next")!.addEventListener("click", () => choose(current + 1));
+            // The place already showing counts once the map is actually on screen (it can be on a hidden tab).
+            const seen = new IntersectionObserver((entries) => {
+                if (!entries.some((e) => e.isIntersecting)) return;
+                visit(current);
+                seen.disconnect();
+            });
+            seen.observe(map);
+            document.addEventListener("astro:before-swap", () => seen.disconnect(), { once: true });
         }
     });
 </script>
@@ -125,16 +198,13 @@ const pins = places.map((place) => {
         background: var(--orange);
         box-shadow: 0 1px 3px rgb(26 13 0 / 0.25);
         translate: -50% -50%;
-        cursor: pointer;
+        /* Clicks and hovers are worked out from the map (the nearest pin wins: see the script). */
+        pointer-events: none;
         transition: scale 150ms cubic-bezier(0.23, 1, 0.32, 1), background-color 120ms ease;
     }
 
-    /* A bigger area to tap than the dot itself. */
-    .pin::before {
-        content: "";
-        position: absolute;
-        inset: -12px;
-        border-radius: 50%;
+    .map.pointing {
+        cursor: pointer;
     }
 
     .pin[aria-pressed="true"] {
@@ -143,18 +213,78 @@ const pins = places.map((place) => {
         scale: 1.35;
     }
 
-    @media (hover: hover) and (pointer: fine) {
-        .pin:hover {
-            scale: 1.25;
-        }
+    /* The pin a click would pick right now. */
+    .pin.near {
+        z-index: 2;
+        scale: 1.25;
+    }
 
-        .pin[aria-pressed="true"]:hover {
-            scale: 1.35;
+    .pin[aria-pressed="true"].near {
+        scale: 1.35;
+    }
+
+    /* ‹ the place's name › */
+    .head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-top: 16px;
+    }
+
+    .head .pill[hidden] {
+        display: none;
+    }
+
+    /* Like the question arrows on the about page. */
+    .step {
+        flex: none;
+        display: grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        border: 0;
+        background: none;
+        color: var(--orange-dark);
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        transition: color 120ms ease, scale 120ms cubic-bezier(0.23, 1, 0.32, 1), translate 120ms cubic-bezier(0.23, 1, 0.32, 1);
+    }
+
+    .step svg {
+        width: 60%;
+        overflow: visible;
+        fill: currentColor;
+    }
+
+    .prev svg {
+        rotate: 45deg;
+    }
+
+    .next svg {
+        rotate: -135deg;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .step:hover {
+            color: var(--orange);
+            scale: 1.1;
         }
     }
 
+    /* Pressed: nudge the way it points. */
+    .prev:active {
+        scale: 0.9;
+        translate: -2px 0;
+    }
+
+    .next:active {
+        scale: 0.9;
+        translate: 2px 0;
+    }
+
     .place {
-        margin-top: 16px;
+        margin-top: 8px;
         animation: place-in 180ms cubic-bezier(0.23, 1, 0.32, 1);
     }
 
@@ -179,7 +309,7 @@ const pins = places.map((place) => {
     }
 
     p {
-        margin: 8px 0 0;
+        margin: 0;
         font-size: 16px;
         font-weight: 500;
         line-height: 1.4;
@@ -201,7 +331,8 @@ const pins = places.map((place) => {
     }
 
     @media (prefers-reduced-motion: reduce) {
-        .pin {
+        .pin,
+        .step {
             transition: none;
         }
 

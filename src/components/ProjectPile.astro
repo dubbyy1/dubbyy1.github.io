@@ -474,6 +474,20 @@ const blocks = await Promise.all(
 
     .pile:global(.live) .block:global(.dropped) {
         visibility: visible;
+        /* Blocks can be dragged about (scripts/project-pile.ts): a finger moves the block, not the page. */
+        touch-action: none;
+        user-select: none;
+        -webkit-user-drag: none;
+    }
+
+    /* While one is being dragged: a grabbing hand everywhere, and no hover card in the way. */
+    .pile:global(.dragging),
+    .pile:global(.dragging) .block {
+        cursor: grabbing;
+    }
+
+    .pile:global(.dragging) .card {
+        visibility: hidden;
     }
 
     /* Hover card, as in the design: dark box with title, tags and description. Follows the pointer. */

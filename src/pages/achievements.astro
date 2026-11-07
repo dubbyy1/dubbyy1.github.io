@@ -1,56 +1,80 @@
 ---
-// Every achievement (data/achievements.ts), with the ones this browser has unlocked lit up and progress
-// towards the rest. Where the first y of the home logo leads.
+// Every achievement (data/achievements.ts): a big heading, then one row each with its picture when it's
+// unlocked, or a padlock and "???" when it isn't. Every other row sits a bit further right, so the list zigzags.
+// Where the first y of the home logo leads.
 import "@fontsource-variable/fredoka/wght.css";
-import { getCollection } from "astro:content";
 import Base from "../layouts/Base.astro";
 import SectionHeader from "../components/SectionHeader.astro";
 import { achievements } from "../data/achievements";
-import { STAR } from "../scripts/achievements";
 
-// Goals that depend on the site itself rather than a number in data/achievements.ts.
-const projects = await getCollection("projects");
-const goals: Record<string, number> = { "all-projects": projects.length };
-const cards = achievements.map((a) => ({ ...a, goal: a.goal ?? goals[a.id] }));
+// Shown in place of a locked achievement's picture, and its own picture when it has none.
+const LOCKED = "/achievements/locked.png";
+const FALLBACK = "/achievements/achievement-tri.png";
+// The progress bar's knob.
+const KNOB = "/achievements/progress-bar-tri.png";
+
+// The progress bar runs from 0 unlocked to all of them, with a stop marked at each of these counts on the way.
+// Shaped like the settings slider: a tube with a big ring at each end and a small bump at each stop, all one
+// outline. Sizes are in the bar's own units, one per design px (--u); 680 wide runs a little past the heading.
+const STOPS = [1, 3];
+const total = achievements.length;
+const BAR = { width: 680, height: 30, end: 11, bump: 7, tube: 3, line: 3 }; // radii, half the tube's height, outline
+const START = BAR.end; // where 0 sits: the middle of the first ring
+const SPAN = BAR.width - 2 * BAR.end; // from 0 to all of them
+const mid = BAR.height / 2;
+const xAt = (n: number) => START + (Math.min(n, total) / total) * SPAN;
+const rings = [
+    { at: 0, r: BAR.end },
+    ...STOPS.map((at) => ({ at, r: BAR.bump })),
+    { at: total, r: BAR.end },
+];
+// The whole shape: the tube and every ring. Drawn three times (outline, inside, lit inside).
+const tube = { x: START, y: mid - BAR.tube, width: SPAN, height: 2 * BAR.tube, rx: BAR.tube };
 ---
 
 <Base title="achievements" description="Achievements to unlock around dubbyy.com.">
     <SectionHeader page="achievements" fixed={false} />
     <main>
-        <h1 class="visually-hidden">Achievements</h1>
-        <p class="summary"><span class="got">0</span> of {cards.length} unlocked</p>
+        <h1>achievements</h1>
+        {/* How many are unlocked: the bar lit up to the count, and every ring it has reached lit too.
+            The triangle stands at the count, with "3 / 5" beside the bar (under it on phones). The outline is the whole shape drawn
+            with a thick stroke underneath, so it runs round the outside and never through the rings. */}
+        <div class="progress" role="progressbar" aria-label="Achievements unlocked" aria-valuemin="0" aria-valuemax={total} aria-valuenow="0" style={`--p: 0; --width: ${BAR.width}; --height: ${BAR.height}; --start: ${START}; --span: ${SPAN}; --line: ${BAR.line}`}>
+            <svg class="bar" viewBox={`0 0 ${BAR.width} ${BAR.height}`} aria-hidden="true">
+                <g class="outline" stroke-width={BAR.line * 2} stroke-linejoin="round">
+                    <rect {...tube} />
+                    {rings.map((ring) => <circle cx={xAt(ring.at)} cy={mid} r={ring.r} />)}
+                </g>
+                <g class="inside">
+                    <rect {...tube} />
+                    {rings.map((ring) => <circle cx={xAt(ring.at)} cy={mid} r={ring.r} />)}
+                </g>
+                <g class="lit">
+                    {/* Its width is set by the script below. */}
+                    <rect class="fill" x={tube.x} y={tube.y} width="0" height={tube.height} data-span={SPAN} />
+                    {rings.map((ring) => <circle class="ring" data-at={ring.at} cx={xAt(ring.at)} cy={mid} r={ring.r} />)}
+                </g>
+            </svg>
+            <img class="knob" src={KNOB} alt="" draggable="false" aria-hidden="true" />
+            <span class="count" aria-hidden="true"><span class="got">0</span> / {total}</span>
+        </div>
         <ul class="list">
             {
-                cards.map((a) => (
-                    <li class="achievement" data-id={a.id} data-goal={a.goal} data-title={a.title} data-description={a.description}>
-                        {/* Its own picture once it's drawn (image in data/achievements.ts), a star until then. */}
-                        {a.image ? (
-                            <img class="icon picture" src={a.image} alt="" />
-                        ) : (
-                            <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
-                                <path d={STAR} />
-                            </svg>
-                        )}
+                achievements.map((a, i) => (
+                    <li class="achievement" style={`--i: ${i}`} data-id={a.id} data-image={a.image ?? FALLBACK} data-description={a.description}>
+                        <img class="picture" src={LOCKED} alt="" width="250" height="250" />
                         <div class="text">
-                            {/* Secret ones keep how to get them quiet until they're unlocked; the name always shows. */}
                             <h2 class="title">{a.title}</h2>
-                            <p class="description">{a.secret ? "A secret achievement" : a.description}</p>
-                            {a.goal && a.goal > 1 && (
-                                <div class="progress">
-                                    <span class="bar">
-                                        <span class="fill" />
-                                    </span>
-                                    <span class="count">0/{a.goal}</span>
-                                </div>
-                            )}
-                            <p class="when" hidden />
+                            {/* How to get it stays quiet until it's unlocked; the name always shows. */}
+                            <p class="description">???</p>
                         </div>
+                        <span class="visually-hidden state">Locked</span>
                     </li>
                 ))
             }
         </ul>
         <script is:inline data-astro-rerun>
-            // Lights up what's unlocked before the page is drawn, so it never flashes up all locked.
+            // Shows what's unlocked before the page is drawn, so it never flashes up all locked.
             // Reads the cookie scripts/achievements.ts saves: { unlocked: { id: time }, progress: { id: count or list } }.
             // (Anything still in localStorage from before the cookie is moved over by that script on the next unlock.)
             {
@@ -61,167 +85,386 @@ const cards = achievements.map((a) => ({ ...a, goal: a.goal ?? goals[a.id] }));
                     saved = JSON.parse(text ?? "{}") ?? {};
                 } catch {}
                 const unlocked = saved.unlocked ?? {};
-                const progress = saved.progress ?? {};
                 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
                 let got = 0;
-                for (const card of document.querySelectorAll(".achievement")) {
-                    const id = card.dataset.id;
-                    if (unlocked[id]) {
-                        got++;
-                        card.classList.add("unlocked");
-                        card.querySelector(".title").textContent = card.dataset.title;
-                        card.querySelector(".description").textContent = card.dataset.description;
-                        card.querySelector(".progress")?.remove();
-                        // The exact moment, in the visitor's own time: "Unlocked 4 Nov 2026, 19:42:07".
-                        const when = new Date(unlocked[id]);
-                        const two = (n) => String(n).padStart(2, "0");
-                        const line = card.querySelector(".when");
-                        line.textContent =
-                            `Unlocked ${when.getDate()} ${MONTHS[when.getMonth()]} ${when.getFullYear()}, ` +
-                            `${two(when.getHours())}:${two(when.getMinutes())}:${two(when.getSeconds())}`;
-                        line.hidden = false;
-                        continue;
-                    }
-                    const bar = card.querySelector(".progress");
-                    if (!bar) continue;
-                    const done = progress[id];
-                    const steps = Math.min(Array.isArray(done) ? done.length : Number(done) || 0, Number(card.dataset.goal));
-                    bar.querySelector(".count").textContent = `${steps}/${card.dataset.goal}`;
-                    bar.querySelector(".fill").style.width = `${(steps / Number(card.dataset.goal)) * 100}%`;
+                for (const row of document.querySelectorAll(".achievement")) {
+                    const time = unlocked[row.dataset.id];
+                    if (!time) continue;
+                    got++;
+                    row.classList.add("unlocked");
+                    row.querySelector(".picture").src = row.dataset.image;
+                    row.querySelector(".description").textContent = row.dataset.description;
+                    // When, in the visitor's own time, on hovering the picture: "Unlocked 4 Nov 2026, 19:42".
+                    const when = new Date(time);
+                    const two = (n) => String(n).padStart(2, "0");
+                    const date =
+                        `Unlocked ${when.getDate()} ${MONTHS[when.getMonth()]} ${when.getFullYear()}, ` +
+                        `${two(when.getHours())}:${two(when.getMinutes())}`;
+                    row.querySelector(".picture").title = date;
+                    row.querySelector(".state").textContent = date;
                 }
-                document.querySelector(".summary .got").textContent = String(got);
+
+                // The progress bar: filled to the count, with the stops it has reached lit up.
+                const bar = document.querySelector(".progress");
+                const total = Number(bar.getAttribute("aria-valuemax"));
+                const p = Math.min(got, total) / total; // 0 to 1
+                const fill = bar.querySelector(".fill");
+                const rings = [...bar.querySelectorAll(".ring")];
+                const count = bar.querySelector(".count");
+                const number = bar.querySelector(".got");
+                // Plays a one-off CSS animation (a class with an animation on it) again from the start.
+                const replay = (el, name) => {
+                    el.classList.remove(name);
+                    void el.getBoundingClientRect();
+                    el.classList.add(name);
+                };
+                // Draws the bar at `at` (0 to 1): the triangle there, lit up to it, every ring it has passed, and
+                // the count it has reached. While sweeping, a ring pops as the triangle reaches it.
+                // NEAR: how close counts as there, in achievements. The sweep eases in so gently at the end that
+                // it looks settled well before it's exactly there, so things go off once it's this close.
+                const NEAR = 0.03;
+                const drawAt = (at, sweeping = false) => {
+                    bar.style.setProperty("--p", String(at));
+                    fill.setAttribute("width", String(at * Number(fill.dataset.span)));
+                    for (const ring of rings) {
+                        const reached = at * total >= Number(ring.dataset.at) - NEAR;
+                        if (sweeping && reached && !ring.classList.contains("reached")) replay(ring, "pop");
+                        ring.classList.toggle("reached", reached);
+                    }
+                    number.textContent = String(Math.floor(at * total + NEAR));
+                };
+                bar.setAttribute("aria-valuenow", String(got));
+
+                // On arriving, the triangle sweeps from the start up to the count, lighting the bar as it goes.
+                // Fast out of the start and easing into place (ease-out-quint), a bit longer the further it goes.
+                // It waits for a sideways page slide to finish first. Animations off or reduced: straight there.
+                const settings = document.documentElement.dataset.motion;
+                if (p === 0 || settings || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+                    drawAt(p);
+                } else {
+                    drawAt(0);
+                    const DELAY = 400; // ms
+                    const TIME = 750 + 400 * p; // ms
+                    const ease = (t) => 1 - (1 - t) ** 5;
+                    let start;
+                    let landed = false;
+                    const step = (now) => {
+                        start ??= now + DELAY;
+                        const t = Math.min(Math.max((now - start) / TIME, 0), 1);
+                        const at = t < 1 ? p * ease(t) : p;
+                        drawAt(at, true);
+                        // As soon as it's as good as there, the triangle and the count land with a little squash.
+                        if (!landed && (p - at) * total < NEAR) {
+                            landed = true;
+                            replay(bar.querySelector(".knob"), "landed");
+                            replay(count, "landed");
+                        }
+                        if (t < 1 && bar.isConnected) requestAnimationFrame(step);
+                    };
+                    requestAnimationFrame(step);
+                }
             }
         </script>
     </main>
 </Base>
 
 <style>
+    /* Sizes in --u, one pixel of the 1280-wide design, like the settings page. Phones shrink it to fit. */
     main {
-        min-height: 100dvh;
+        --u: calc(1.25 * var(--px));
+        --brown: #613305;
+        --ease: cubic-bezier(0.23, 1, 0.32, 1); /* ease-out-quint */
+        /* Exactly the screen's height: the heading and progress bar stay put, and only the list scrolls. */
+        box-sizing: border-box;
+        height: 100dvh;
         display: grid;
-        align-content: start;
+        grid-template-rows: auto auto minmax(0, 1fr);
         justify-items: center;
-        gap: 20px;
-        padding: 112px 16px 64px;
+        /* The heading sits where the settings page's does. */
+        padding: calc(66 * var(--u)) 16px 0;
     }
 
-    .summary {
+    /* Same as the settings page's heading. */
+    h1 {
         margin: 0;
         font-family: "Fredoka Variable", var(--font-body);
         font-weight: 600;
-        font-size: 22px;
-        color: var(--orange-dark);
-    }
-
-    .got {
+        font-size: calc(96 * var(--u));
+        line-height: 1;
         color: var(--orange);
     }
 
-    .list {
-        width: min(560px, 100%);
-        display: grid;
-        gap: 14px;
-        margin: 0;
-        padding: 0;
-        list-style: none;
+    /* The progress bar, a stand-in until it's drawn (the SVG above; its sizes come from BAR in the front matter
+       as --width, --height, --start and --span). --p is how far along, 0 for none unlocked to 1 for all (set by
+       the script above); --at is where that is, from the middle of the first ring to the middle of the last.
+       --b is its unit: --u, but phones shrink it separately so the list doesn't have to shrink as much. */
+    .progress {
+        --b: var(--u);
+        --p: 0;
+        --at: calc((var(--start) + var(--p) * var(--span)) * var(--b));
+        position: relative;
+        width: calc(var(--width) * var(--b));
+        height: calc(var(--height) * var(--b));
+        /* Room for the top half of the triangle. */
+        margin-top: calc(56 * var(--u));
     }
 
-    /* White and rounded like the about page's cards. Locked ones are faded, with a grey star. */
+    .bar {
+        display: block;
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+    }
+
+    .bar .outline {
+        fill: var(--brown);
+        stroke: var(--brown);
+    }
+
+    .bar .inside {
+        fill: var(--orange-dark);
+    }
+
+    .bar .lit {
+        fill: var(--orange-mid);
+    }
+
+    .bar .ring:not(.reached) {
+        display: none;
+    }
+
+    /* The triangle, standing at the count. Drawings everywhere on the site are shown at 0.4 design px (--u)
+       per pixel of the file, as on the settings page and home: this one's 250 wide. */
+    .knob {
+        position: absolute;
+        top: 50%;
+        left: var(--at);
+        width: calc(100 * var(--b));
+        height: auto;
+        translate: -50% -50%;
+        pointer-events: none;
+        user-select: none;
+    }
+    /* "3 / 5" in a pill just past the right end of the bar, like the settings slider's level. It hangs off the
+       side, so the bar itself stays in the middle of the page. */
+    .count {
+        position: absolute;
+        top: 50%;
+        /* Clear of the triangle when it's at the end. */
+        left: calc(100% + 50 * var(--b));
+        translate: 0 -50%;
+        /* Drawn like the bar: a flat orange rounded rectangle with the same brown outline. */
+        height: calc(35 * var(--u));
+        box-sizing: border-box;
+        display: flex;
+        align-items: baseline;
+        padding: calc(3 * var(--u)) calc(16 * var(--u)) 0;
+        /* The outline, as thick as the bar's (BAR.line, in the bar's units). A shadow rather than a border:
+           browsers round borders down to whole pixels, which left this one looking thinner than the bar's. */
+        box-shadow: inset 0 0 0 calc(var(--line) * var(--b)) var(--brown);
+        border-radius: calc(10 * var(--u));
+        background: var(--orange-mid);
+        font-family: "Fredoka Variable", var(--font-body);
+        font-weight: 600;
+        font-size: calc(22 * var(--u));
+        line-height: 1.2;
+        color: #fff;
+        /* pre: keeps the spaces either side of the "/" next to the number's own span. */
+        white-space: pre;
+        pointer-events: none;
+    }
+
+    /* The count itself bigger than the "/ 5". */
+    /* .count .got {
+        font-size: calc(26 * var(--u));
+        line-height: 1;
+    } */
+
+    /* Sized like the settings page's rows: titles as big as its setting names, descriptions as its levels. */
+    /* The only part that scrolls, down to the bottom of the screen. Its top and bottom edges fade out, so rows
+       slide away under them rather than being cut off. */
+    .list {
+        display: grid;
+        align-content: start;
+        gap: calc(2 * var(--u));
+        margin: calc(32 * var(--u)) 0 0;
+        padding: calc(24 * var(--u)) calc(16 * var(--u)) 64px;
+        list-style: none;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        /* A thin orange scrollbar, only while the list is pointed at. It's there but see-through otherwise,
+           so the list doesn't shift sideways when it appears. */
+        scrollbar-width: thin;
+        scrollbar-color: transparent transparent;
+        transition: scrollbar-color 200ms ease;
+        mask-image: linear-gradient(transparent, #000 calc(24 * var(--u)), #000 calc(100% - 48px), transparent);
+    }
+
+    .list:hover {
+        scrollbar-color: var(--orange-mid) transparent;
+    }
+
+    /* The picture on the left, the words beside it. */
     .achievement {
+        /* Keeps its screen-reader text (.visually-hidden, positioned absolutely) inside the scrolling list,
+           not stretching the page. */
+        position: relative;
         display: flex;
         align-items: center;
-        gap: 16px;
-        padding: 16px 20px;
-        border-radius: 22px;
-        background: #fff;
-        opacity: 0.6;
     }
 
-    .achievement.unlocked {
-        opacity: 1;
+    /* Every other row steps in, so the list zigzags. */
+    .achievement:nth-child(even) {
+        margin-left: calc(33 * var(--u));
     }
 
-    .icon {
-        flex: none;
-        width: 44px;
-        height: 44px;
-        fill: #e3d4c5;
-    }
-
-    .unlocked .icon {
-        fill: var(--orange);
-    }
-
-    /* A drawn picture, tilted like on the banner; greyed out until it's unlocked. */
+    /* 250px drawings at 0.4 design px each, like every drawing on the site (see .knob). */
     .picture {
-        width: 56px;
-        height: 56px;
-        object-fit: contain;
-        rotate: -10deg;
-        filter: grayscale(1);
-    }
-
-    .unlocked .picture {
-        filter: none;
-    }
-
-    .text {
-        flex: 1;
-        min-width: 0;
+        flex: none;
+        width: calc(100 * var(--u));
+        height: calc(100 * var(--u));
     }
 
     .title {
         margin: 0;
         font-family: "Fredoka Variable", var(--font-body);
+        font-weight: 500; /* as the settings page's setting names */
+        font-size: calc(35 * var(--u));
+        line-height: 1.1;
+        color: var(--brown);
+    }
+
+    .description {
+        margin: calc(4 * var(--u)) 0 0;
         font-weight: 600;
-        font-size: 22px;
-        line-height: 1.2;
-        color: var(--orange-dark);
+        font-size: calc(24 * var(--u));
+        line-height: 1.3;
+        color: var(--brown);
     }
 
-    .unlocked .title {
-        color: var(--orange);
+    /* ---- Motion. Everything below is off with animations off (global.css); with them reduced, or the device
+       asking for less motion, only the small hover effects stay. ---- */
+
+    /* A ring pops as the sweeping triangle reaches it. */
+    .bar .ring {
+        transform-box: fill-box;
+        transform-origin: center;
     }
 
-    .description,
-    .when {
-        margin: 3px 0 0;
-        font-weight: 600;
-        font-size: 16px;
-        line-height: 1.35;
+    .bar .ring.pop {
+        animation: ring-pop 280ms var(--ease);
     }
 
-    .when {
-        font-size: 14px;
-        color: var(--orange-dark);
+    @keyframes ring-pop {
+        from {
+            scale: 1.5;
+        }
     }
 
-    .progress {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-top: 8px;
+    /* The triangle and the count land at the end of the sweep with a quick squash, like the settings knob. */
+    .knob.landed {
+        transform-origin: 50% 70%;
+        animation: knob-land 220ms var(--ease);
     }
 
-    .bar {
-        flex: 1;
-        height: 8px;
-        border-radius: 999px;
-        background: #f3e6d8;
-        overflow: hidden;
+    @keyframes knob-land {
+        from {
+            scale: 1.12 0.86;
+        }
     }
 
-    .fill {
-        display: block;
-        width: 0;
-        height: 100%;
-        border-radius: inherit;
-        background: var(--orange-soft);
+    .count.landed {
+        animation: count-land 240ms var(--ease);
     }
 
-    .count {
-        font-weight: 800;
-        font-size: 14px;
-        color: var(--orange-dark);
+    @keyframes count-land {
+        from {
+            scale: 1.15;
+        }
+    }
+
+    /* The rows rise into place one after another as the page opens, alongside the bar's sweep. */
+    .achievement {
+        animation: row-in 360ms var(--ease) both;
+        animation-delay: calc(200ms + var(--i) * 55ms);
+    }
+
+    @keyframes row-in {
+        from {
+            opacity: 0;
+            translate: 0 calc(14 * var(--u));
+        }
+    }
+
+    /* Pointing at a row: an unlocked picture leans in a little; a padlock gives a small rattle. */
+    .picture {
+        transition: scale 150ms ease, rotate 150ms ease;
+    }
+
+    @media (hover: hover) and (pointer: fine) {
+        .achievement.unlocked:hover .picture {
+            scale: 1.06;
+            rotate: -4deg;
+        }
+
+        .achievement:not(.unlocked):hover .picture {
+            animation: rattle 320ms ease;
+        }
+    }
+
+    @keyframes rattle {
+        20% {
+            rotate: -7deg;
+        }
+        45% {
+            rotate: 6deg;
+        }
+        70% {
+            rotate: -3deg;
+        }
+    }
+
+    :global(html[data-motion]) .bar .ring.pop,
+    :global(html[data-motion]) .knob.landed,
+    :global(html[data-motion]) .count.landed,
+    :global(html[data-motion]) .achievement {
+        animation: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .bar .ring.pop,
+        .knob.landed,
+        .count.landed,
+        .achievement {
+            animation: none;
+        }
+    }
+
+    /* Phones: everything shrinks until the list fits across, and the bar a bit more, since it's wider. */
+    @media (max-width: 600px) {
+        main {
+            --u: min(1px, (100vw - 32px) / 560);
+            /* Below the small "dubbyy /achievements", which runs across most of a phone. */
+            padding-top: 72px;
+        }
+
+        /* The count goes under the bar instead of beside it, so the bar can use the whole width (leaving room
+           for the half triangle poking out of each end), and stays closer to the size of everything else. */
+        .progress {
+            --b: min(1px, (100vw - 32px) / 760);
+            /* Room for the count underneath, clear of the triangle. */
+            margin-bottom: calc(46 * var(--b) + 40 * var(--u));
+        }
+
+        .count {
+            top: calc(100% + 40 * var(--b));
+            left: 50%;
+            translate: -50% 0;
+        }
+
+        /* Capped so the long word still fits across. */
+        h1 {
+            font-size: min(calc(96 * var(--u)), 14vw);
+        }
     }
 </style>

@@ -46,6 +46,10 @@ import "@fontsource-variable/fredoka/wght.css";
     /* --tall is the banner's height, which is also how far in its slanted left end reaches. */
     #achievement-toasts :global(.banner) {
         --tall: calc(92 * var(--px));
+        /* The picture's width in its file (set by scripts/achievements.ts; the triangle's until then). Drawings
+           are shown at half a --px per pixel of the file, like everywhere else on the site. */
+        --w: 294;
+        --picture: calc(var(--w) * 0.5 * var(--px));
         position: relative;
         display: flex;
         align-items: center;
@@ -53,7 +57,7 @@ import "@fontsource-variable/fredoka/wght.css";
         max-width: min(calc(600 * var(--px)), 100vw);
         min-height: var(--tall);
         /* Room on the left for the slant, on the right for the picture. */
-        padding: calc(12 * var(--px)) calc(160 * var(--px)) calc(15 * var(--px)) calc(58 * var(--px));
+        padding: calc(12 * var(--px)) calc(var(--picture) + 14 * var(--px)) calc(15 * var(--px)) calc(58 * var(--px));
         transition: translate 200ms ease;
     }
 
@@ -105,7 +109,7 @@ import "@fontsource-variable/fredoka/wght.css";
         position: absolute;
         right: calc(4 * var(--px));
         top: calc(-32 * var(--px));
-        width: calc(146 * var(--px));
+        width: var(--picture);
         height: auto;
     }
 
@@ -118,9 +122,11 @@ import "@fontsource-variable/fredoka/wght.css";
 
         #achievement-toasts :global(.banner) {
             --tall: 70px;
+            /* 111px for the triangle, as before. */
+            --picture: calc(var(--w) * 0.3776px);
             min-width: 0;
             max-width: 92vw;
-            padding: 9px 122px 11px 44px;
+            padding: 9px calc(var(--picture) + 11px) 11px 44px;
         }
 
         #achievement-toasts :global(.name) {
@@ -135,7 +141,6 @@ import "@fontsource-variable/fredoka/wght.css";
         #achievement-toasts :global(.picture) {
             right: 3px;
             top: -24px;
-            width: 111px;
         }
     }
 </style>

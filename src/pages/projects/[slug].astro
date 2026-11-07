@@ -9,6 +9,7 @@ import type { CollectionEntry } from "astro:content";
 import Base from "../../layouts/Base.astro";
 import SectionHeader from "../../components/SectionHeader.astro";
 import { tagColour, tagText } from "../../data/tags";
+import { caption } from "../../utils/caption";
 
 export async function getStaticPaths() {
     const projects = await getCollection("projects");
@@ -79,7 +80,8 @@ const arrow =
                     {data.tags.map((tag) => <li class="tag" style={`background: ${tagColour(tag)}; color: ${tagText}`}>#{tag}</li>)}
                 </ul>
 
-                <p class="summary">{data.subtitle ?? data.description}</p>
+                {/* Can hold Markdown-style links, like "Based on [someone's](https://...) version" (utils/caption.ts). */}
+                <p class="summary" set:html={caption(data.subtitle ?? data.description)} />
 
                 {
                     hasBody && !long && (
@@ -261,6 +263,10 @@ const arrow =
         font-size: clamp(18px, 1.7vw, 21px);
         line-height: 1.35;
         text-wrap: pretty;
+    }
+
+    .summary :global(a) {
+        color: var(--orange-dark);
     }
 
     .writeup {

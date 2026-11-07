@@ -10,7 +10,7 @@ import externalLinks from './src/plugins/external-links.mjs';
 export default defineConfig({
   integrations: [svelte()],
   adapter: cloudflare(),
-  // URLs have no trailing slash (/right, not /right/), so links never bounce through a redirect.
+  // URLs have no trailing slash (/settings, not /settings/), so links never bounce through a redirect.
   trailingSlash: 'never',
   // Hide the Astro toolbar that the dev server shows at the bottom of the page.
   devToolbar: { enabled: false },

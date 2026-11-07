@@ -34,16 +34,20 @@ const badgeNames = await Promise.all(
 
 // The questions, in order. The first one shows when the page opens.
 // Each one's answer is the Markdown file of the same name in src/content/me (who.md, what.md...).
+// One with `hidden: true` at the top of its file is left out, until that line is taken away again.
 const words = ["who", "what", "when", "where", "why"];
-const questions = await Promise.all(
-    words.map(async (word) => {
-        const answer = await getEntry("about", word);
-        if (!answer) throw new Error(`The about page has no answer for "${word}": add src/content/me/${word}.md`);
-        const { Content } = await render(answer);
-        const { timeline, map, cards } = answer.data;
-        return { word, Content, hasText: !!answer.body?.trim(), timeline, map, cards };
-    }),
-);
+const questions = (
+    await Promise.all(
+        words.map(async (word) => {
+            const answer = await getEntry("about", word);
+            if (!answer) throw new Error(`The about page has no answer for "${word}": add src/content/me/${word}.md`);
+            if (answer.data.hidden) return null;
+            const { Content } = await render(answer);
+            const { timeline, map, cards } = answer.data;
+            return { word, Content, hasText: !!answer.body?.trim(), timeline, map, cards };
+        }),
+    )
+).filter((q) => q !== null);
 
 // The < > arrows: the same L shape as the screen arrows (components/ScreenArrows.astro), rotated.
 const arrow =
@@ -148,7 +152,7 @@ const arrow =
 </Base>
 
 <script>
-    import { count } from "../scripts/achievements";
+    import { collect } from "../scripts/achievements";
     import { reducedMotion } from "../scripts/settings";
 
     // A name from `names` at the top of the page, with its picture's address.
@@ -291,7 +295,6 @@ const arrow =
             if (ours === flips) pfp.dataset.side = away; // unless a quicker click has flipped it since
         });
         pfp.addEventListener("click", nameCycle.skip);
-        pfp.addEventListener("click", () => count("pfp-clicks"));
 
         // {name} in the answers copies the badge letter by letter, cursor and all.
         const nameSvg = badge.querySelector<SVGSVGElement>(".name")!;
@@ -349,6 +352,10 @@ const arrow =
             });
         };
 
+        // Each question looked at counts towards the "explore the about page" achievement (data/achievements.ts).
+        const allWords = words.map((w) => w.id.slice("q-".length));
+        const seen = () => collect("about-questions", allWords[current], allWords);
+
         const pick = (i: number, focus = false) => {
             const before = movers.map((el) => el.getBoundingClientRect());
 
@@ -358,6 +365,7 @@ const arrow =
                 w.tabIndex = j === current ? 0 : -1;
             });
             answers.forEach((a, j) => (a.hidden = j !== current));
+            seen();
             if (focus) words[current].focus();
             moveMark();
 
@@ -386,6 +394,8 @@ const arrow =
                 });
             });
         };
+
+        seen(); // the question the page opens on counts too
 
         words.forEach((w, i) => w.addEventListener("click", () => pick(i)));
         root.querySelector(".prev")!.addEventListener("click", () => pick(current - 1));

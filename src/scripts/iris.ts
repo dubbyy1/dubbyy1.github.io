@@ -5,8 +5,11 @@
 import { navigate } from "astro:transitions/client";
 import { reducedMotion } from "./settings";
 
-const GROW_MS = 520;
-const GROW_EASE = "cubic-bezier(0.65, 0, 0.35, 1)"; // ease-in-out-cubic: on-screen shape changing size
+// How long the colour takes to fill the screen, and its curve: quick to get going and quick to finish,
+// so it reads as one snappy pop. (The block can be far bigger than the screen by the end, so a long
+// slow finish would only be spent growing where nobody can see it.)
+const GROW_MS = 380;
+const GROW_EASE = "cubic-bezier(0.76, 0, 0.24, 1)"; // ease-in-out-quart
 
 export function irisLinks(root: HTMLElement, s: number): () => void {
     let busy = false;
@@ -58,10 +61,16 @@ function grow(block: HTMLElement, s: number): Promise<void> {
 
     // How far to grow: until the narrowest part of the shape, measured from its centre,
     // reaches the farthest corner of the screen.
-    const centre = new DOMPoint(cx, cy).matrixTransform(new DOMMatrix(block.style.transform));
+    // The block turns about its centre (its transform-origin), so the transform is applied around that
+    // point. Leaving that out put the centre in the wrong place whenever the block was tilted (circles
+    // roll, so nearly always), and the colour stopped short of a corner of the screen.
+    const turned = new DOMMatrix().translate(cx, cy).multiply(new DOMMatrix(block.style.transform)).translate(-cx, -cy);
+    const centre = new DOMPoint(cx, cy).matrixTransform(turned);
+    // Measured on the screen: the pile isn't necessarily at the very top left of it.
+    const box = block.parentElement!.getBoundingClientRect();
     const reach = Math.max(
         ...[[0, 0], [innerWidth, 0], [0, innerHeight], [innerWidth, innerHeight]].map(([x, y]) =>
-            Math.hypot(x - centre.x, y - centre.y),
+            Math.hypot(x - box.left - centre.x, y - box.top - centre.y),
         ),
     );
     const scale = (reach / innerRadius(block, w, h, cx, cy, s)) * 1.05;
@@ -74,7 +83,7 @@ function grow(block: HTMLElement, s: number): Promise<void> {
     // Meanwhile the block itself fades out. Its fill matches the colour underneath,
     // so what visibly fades is its label, leaving the screen all one colour.
     block.animate([{ opacity: 1 }, { opacity: 0 }], {
-        duration: GROW_MS * 0.7,
+        duration: GROW_MS * 0.6,
         easing: "ease-out",
         fill: "forwards",
     });

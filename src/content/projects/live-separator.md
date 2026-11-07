@@ -9,7 +9,7 @@ links:
   - label: "Open project page"
     url: "https://live-separator.dubbyy.com"
 block:
-  shape: big-triangle
+  shape: small-triangle
   colour: green
   image: ../../assets/projects/live-separator.png
 ---
@@ -38,6 +38,4 @@ block:
 
 <p>This feature lets the user define rules, to filter out any songs that don't match those rules. It connects to your Spotify account via Spotify's Web API, and pulls the metadata of the track currently playing. Any song that does not match the selected criteria is skipped instantly, making the playlist feel filtered in real time.</p>
 
-<figure><img src="/media/projects/live-separator/separation.png" alt="Separation page showing Spotify as the audio source, an output device picker, and live input and output meters." /></figure>
-
-<figure><img src="/media/projects/live-separator/filters.png" alt="Filters page for Spotify playback with artist, release year, and clean or explicit filter controls." /></figure>
+<figure style="display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 16px"><img src="/media/projects/live-separator/separation.png" alt="Separation page showing Spotify as the audio source, an output device picker, and live input and output meters." style="flex: 1 1 260px; min-width: 0" /><img src="/media/projects/live-separator/filters.png" alt="Filters page for Spotify playback with artist, release year, and clean or explicit filter controls." style="flex: 1 1 260px; min-width: 0" /></figure>

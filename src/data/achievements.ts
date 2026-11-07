@@ -6,8 +6,8 @@
 // description: how to get it.
 // goal:        optional. For ones that take a number of steps (count() in scripts/achievements.ts):
 //              how many. The page shows progress towards it.
-// secret:      optional. Its description is hidden on the achievements page ("A secret achievement")
-//              until it's unlocked; the title always shows.
+// secret:      optional. Kept for marking ones that are hidden on purpose. (The achievements page now shows
+//              "???" under every locked one, secret or not; the title always shows.)
 // image:       optional. Its picture, on the banner that pops up and on the achievements page; without one,
 //              the banner has the triangle (public/achievements/achievement-tri.png). Put the file in
 //              public/achievements/ and give its path from there, like "/achievements/poke.png".
@@ -21,30 +21,42 @@ export interface Achievement {
     image?: string;
 }
 
+// Ones with no goal here that count something get theirs in pages/achievements.astro, worked out from the site.
 export const achievements: Achievement[] = [
-    {
-        id: "pfp-clicks",
-        title: "Leave me alone!",
-        description: "Click the profile picture on the about page 10 times",
-        goal: 10,
-    },
-    {
-        // Its goal is however many projects there are (worked out in pages/achievements.astro).
-        id: "all-projects",
-        title: "Tour guide",
-        description: "Visit every project's page",
-    },
     {
         // One per link in components/SocialLinks.astro.
         id: "all-socials",
-        title: "Social butterfly",
-        description: "Click every social link on the home page",
+        title: "Social Butterfly",
+        description: "Click every social link",
         goal: 3,
+        image: "/achievements/social-butterfly.png",
+    },
+    {
+        // Every place's card seen on the about page's map (components/WorldMap.astro); one per place.
+        id: "all-places",
+        title: "Well Travelled",
+        description: "Visit every location on the map",
+        image: "/achievements/well-travelled.png",
+    },
+    {
+        // Every question on the about page looked at (pages/me.astro); one per question that's showing.
+        id: "about-questions",
+        title: "Why?",
+        description: "Explore the about page",
+        image: "/achievements/why.png",
+    },
+    {
+        // One per project.
+        id: "all-projects",
+        title: "Building Blocks",
+        description: "Visit every project",
+        image: "/achievements/building-blocks.png",
     },
     {
         id: "password",
-        title: "Smile",
-        description: "Enter the right password on /y",
+        title: "Smile.",
+        description: "Find the password",
         secret: true,
+        image: "/achievements/smile.png",
     },
 ];

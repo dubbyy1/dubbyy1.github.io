@@ -12,7 +12,7 @@ links:
   - label: "Open with sample data"
     url: "https://pc-stats.dubbyy.com/?db=https%3A%2F%2Fraw.githubusercontent.com%2Fdubbyy1%2Fpc-stats%2Fmain%2Fexamples%2Fstats.db"
 block:
-  shape: big-rectangle
+  shape: medium-rectangle
   colour: blue
   image: ../../assets/projects/pc-stats.png
   labelSize: 48

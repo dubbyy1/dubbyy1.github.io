@@ -5,7 +5,7 @@ import Matter from "matter-js";
 import { irisLinks } from "./iris";
 import { reducedMotion } from "./settings";
 
-const { Engine, Bodies, Body, Composite, Sleeping } = Matter;
+const { Engine, Bodies, Body, Composite, Constraint, Sleeping } = Matter;
 
 const DESIGN_WIDTH = 1280;
 const DESIGN_HEIGHT = 720;
@@ -19,6 +19,11 @@ const SQUISH_MIN_SPEED = 1.75; // gentler bumps (like blocks settling against ea
 const SQUISH_MAX = 0.22; // most a block ever squashes, as a fraction of its size
 const SQUISH_STIFFNESS = 0.2; // how quickly it springs back (per step)
 const SQUISH_DAMPING = 0.3; // how quickly the wobble dies down (per step)
+
+// Dragging: a grabbed block hangs from the pointer by a spring, so it swings and can be thrown.
+const DRAG_START = 6; // px a press has to move before it's a drag rather than a click
+const DRAG_STIFFNESS = 0.2; // how tightly the block follows the pointer
+const DRAG_DAMPING = 0.1;
 
 interface Block {
     el: HTMLElement;
@@ -55,7 +60,7 @@ export function startPile(root: HTMLElement): () => void {
     // More solver passes than Matter's defaults (6 and 4): stacked blocks settle firmly instead of trembling.
     // Cheap with only a handful of bodies.
     const engine = Engine.create({ enableSleeping: true, positionIterations: 12, velocityIterations: 10 });
-    engine.gravity.y = 2.4;
+    engine.gravity.y = 3;
 
     // Floor and side walls just outside the visible area. They reach far up so falling blocks stay in.
     const wall = { isStatic: true, friction: 0.6 };
@@ -222,12 +227,13 @@ export function startPile(root: HTMLElement): () => void {
     let simTime = 0; // ms of simulation run so far; drops are timed on this, so nothing piles up in a background tab
     let nextDrop = 0;
     let quietSince = -1;
+    let held: { b: Block; spring: Matter.Constraint } | null = null; // the block being dragged
 
     // Done once every block is in and the engine has put them all to sleep. A block that has
     // only just appeared isn't moving yet, so "slow" alone isn't enough. Anything still twitching
     // after a few quiet-ish seconds is left where it is.
     const settled = () => {
-        if (nextDrop < blocks.length) return false;
+        if (held || nextDrop < blocks.length) return false;
         if (blocks.some((b) => b.squish || b.squishSpeed)) return false;
         if (blocks.every((b) => b.body.isSleeping)) return true;
         const slow = blocks.every((b) => b.body.speed < 0.05 && Math.abs(b.body.angularSpeed) < 0.002);
@@ -287,12 +293,90 @@ export function startPile(root: HTMLElement): () => void {
     };
     addEventListener("resize", onResize);
 
+    // Grab a block and drag it about; let go and it carries on with the speed it had (a throw).
+    // A press that barely moves is still a click and opens the project; one that became a drag doesn't.
+    // Not with animations turned down: there's no simulation running then, only the pile's resting place.
+    let press: { b: Block; x: number; y: number; id: number } | null = null;
+    let dragged = false;
+    // A point on the screen in the pile's coordinates, kept inside the walls.
+    const toPile = (clientX: number, clientY: number) => {
+        const box = root.getBoundingClientRect();
+        return {
+            x: Math.min(Math.max(clientX - box.left, 0), width),
+            y: Math.min(Math.max(clientY - box.top, -height), height),
+        };
+    };
+    const onDown = (e: PointerEvent) => {
+        if (reduceMotion || held || e.button !== 0) return;
+        const el = (e.target as Element).closest<HTMLElement>(".block");
+        const b = blocks.find((x) => x.el === el);
+        if (!b?.dropped) return;
+        press = { b, x: e.clientX, y: e.clientY, id: e.pointerId };
+        dragged = false;
+    };
+    const onMove = (e: PointerEvent) => {
+        if (!press || e.pointerId !== press.id) return;
+        if (!held) {
+            if (Math.hypot(e.clientX - press.x, e.clientY - press.y) < DRAG_START) return;
+            // Hold it by the spot that was pressed, so it hangs and swings from there.
+            const at = toPile(press.x, press.y);
+            const { body } = press.b;
+            const spring = Constraint.create({
+                pointA: at,
+                bodyB: body,
+                pointB: { x: at.x - body.position.x, y: at.y - body.position.y },
+                length: 0,
+                stiffness: DRAG_STIFFNESS,
+                damping: DRAG_DAMPING,
+            });
+            Composite.add(engine.world, spring);
+            held = { b: press.b, spring };
+            dragged = true;
+            root.setPointerCapture(e.pointerId);
+            root.classList.add("dragging");
+            wake();
+        }
+        const to = toPile(e.clientX, e.clientY);
+        held.spring.pointA.x = to.x;
+        held.spring.pointA.y = to.y;
+        Sleeping.set(held.b.body, false);
+    };
+    const onUp = (e: PointerEvent) => {
+        if (!press || e.pointerId !== press.id) return;
+        press = null;
+        if (!held) return;
+        Composite.remove(engine.world, held.spring);
+        held = null;
+        root.classList.remove("dragging");
+        wake();
+    };
+    // Runs before the iris's click (it's on the way down, not up), so a drag never opens a project.
+    const onClick = (e: MouseEvent) => {
+        if (!dragged) return;
+        dragged = false;
+        e.preventDefault();
+        e.stopPropagation();
+    };
+    const noNativeDrag = (e: DragEvent) => e.preventDefault(); // the browser's own link dragging
+    root.addEventListener("pointerdown", onDown);
+    root.addEventListener("pointermove", onMove);
+    root.addEventListener("pointerup", onUp);
+    root.addEventListener("pointercancel", onUp);
+    root.addEventListener("click", onClick, true);
+    root.addEventListener("dragstart", noNativeDrag);
+
     const stopCard = hoverCard(root);
     const stopIris = irisLinks(root, s);
 
     return () => {
         cancelAnimationFrame(frame);
         removeEventListener("resize", onResize);
+        root.removeEventListener("pointerdown", onDown);
+        root.removeEventListener("pointermove", onMove);
+        root.removeEventListener("pointerup", onUp);
+        root.removeEventListener("pointercancel", onUp);
+        root.removeEventListener("click", onClick, true);
+        root.removeEventListener("dragstart", noNativeDrag);
         stopCard();
         stopIris();
         Engine.clear(engine);

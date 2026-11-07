@@ -155,7 +155,7 @@ html[data-motion="off"] *::after {
         animation: none;
     }
     html[data-slide="iris"]::view-transition-new(root) {
-        animation: 420ms ease-out both iris-fade-in;
+        animation: 320ms ease-out both iris-fade-in;
         mix-blend-mode: normal;
     }
 

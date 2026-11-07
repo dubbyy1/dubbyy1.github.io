@@ -86,6 +86,8 @@ const about = defineCollection({
         map: z.boolean().default(false),
         // Show one random card at a time from src/data/why.ts under the text.
         cards: z.boolean().default(false),
+        // Leave this question off the page for now (the file stays, ready to bring back).
+        hidden: z.boolean().default(false),
     }),
 });
 

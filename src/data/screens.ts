@@ -9,10 +9,10 @@ export interface Screen {
 export const screens: Screen[] = [
     { path: "/left", name: "coming soon" },
     { path: "/", name: "home" },
-    { path: "/right", name: "settings" },
+    { path: "/settings", name: "settings" },
 ];
 
-// Builds see paths like "/right.html" or "/index.html"; the browser sees "/right" or "/".
+// Builds see paths like "/settings.html" or "/index.html"; the browser sees "/settings" or "/".
 const normalise = (path: string) =>
     path.replace(/\.html$/, "").replace(/\/index$/, "/").replace(/(.)\/$/, "$1") || "/";
 

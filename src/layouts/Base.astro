@@ -49,7 +49,9 @@ const fullTitle = title === "dubbyy" ? title : `${title} · dubbyy`;
                     else if (localStorage.getItem("drawings") === "off") settings.secrets = false;
                 } catch {}
                 const html = document.documentElement;
-                if (settings.animations === false) html.dataset.motion = "off";
+                // Animations: "full", "reduced" or "off" (once true or false).
+                if (settings.animations === false || settings.animations === "off") html.dataset.motion = "off";
+                if (settings.animations === "reduced") html.dataset.motion = "reduced";
                 if (settings.secrets === false) html.dataset.secrets = "off";
                 if (settings.physics === false) html.dataset.physics = "off";
             }
@@ -92,8 +94,8 @@ const fullTitle = title === "dubbyy" ? title : `${title} · dubbyy`;
                 if (isCut(e.from.pathname) || isCut(e.to.pathname)) slide = "cut";
                 // ...as do pages that ask for it, like the 404 (<Base cut>).
                 if (document.documentElement.hasAttribute("data-cut")) slide = "cut";
-                // With animations off in the settings, every page just cuts in.
-                if (document.documentElement.dataset.motion === "off") slide = "cut";
+                // With animations reduced or off in the settings, every page just cuts in.
+                if (document.documentElement.dataset.motion) slide = "cut";
                 swiped = false;
                 document.documentElement.dataset.slide = slide;
             });

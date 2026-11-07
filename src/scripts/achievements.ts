@@ -16,7 +16,7 @@ const SHOW_MS = 4000; // how long a card stays up
 const DEFAULT_PICTURE = "/achievements/achievement-tri.png";
 
 // Fetched as soon as a page that can unlock achievements loads, so a banner never waits on the network.
-// Only in the browser: pages/achievements.astro also imports this file on the server (for STAR), where there's no Image.
+// Only in the browser: on the server (if anything there imports this file) there's no Image.
 if (typeof Image !== "undefined") {
     for (const src of new Set([DEFAULT_PICTURE, ...achievements.flatMap((a) => (a.image ? [a.image] : []))])) {
         new Image().src = src;
@@ -135,6 +135,8 @@ async function showNext() {
     // Only once the picture is ready to draw: otherwise its turn can play out before it appears, and it
     // just pops in at the end. Usually instant (it was fetched when the page loaded); a broken file doesn't hold it up.
     await picture.decode().catch(() => {});
+    // Its drawn width, so the banner shows it at the site's drawing scale (components/AchievementToasts.astro).
+    if (picture.naturalWidth) (banner as HTMLElement).style.setProperty("--w", String(picture.naturalWidth));
     box.append(card);
 
     // With reduced motion it just appears, stays, and goes.
@@ -180,7 +182,3 @@ async function showNext() {
     card.remove();
     showNext();
 }
-
-// A five-pointed star with rounded points, on a 24×24 grid.
-export const STAR =
-    "M12 2.6c.4 0 .8.2 1 .6l2.4 4.9 5.4.8c.9.1 1.3 1.2.6 1.9l-3.9 3.8.9 5.4c.2.9-.8 1.6-1.6 1.2L12 18.6l-4.8 2.5c-.8.4-1.8-.3-1.6-1.2l.9-5.4-3.9-3.8c-.7-.7-.3-1.8.6-1.9l5.4-.8 2.4-4.9c.2-.4.6-.6 1-.6Z";
