@@ -12,6 +12,8 @@ const DESIGN_HEIGHT = 720;
 const FIRST_DROP = 250; // ms after the page appears
 const DROP_GAP = 220; // ms between blocks
 const STEP = 1000 / 60;
+// Phones (600px wide or less) get blocks this much bigger than their screen area alone would give them.
+const PHONE_SCALE = 1.3;
 
 // Blocks squash when they land and wobble back, so they look soft. The physics stays rigid; this is only drawn.
 const SQUISH_PER_SPEED = 0.01; // how hard a hit squashes, per unit of impact speed
@@ -49,8 +51,9 @@ export function startPile(root: HTMLElement): () => void {
 
     // Blocks are sized for a 1280×720 screen. Scale them by screen area, so a tall phone gets blocks
     // about as big as its width allows rather than shrinking to fit its narrow side.
-    const byArea = Math.sqrt((innerWidth * innerHeight) / (DESIGN_WIDTH * DESIGN_HEIGHT));
-    const s = Math.min(Math.max(Math.min(byArea, innerWidth / 520), 0.42), 1.25);
+    const phone = innerWidth <= 600;
+    const byArea = Math.sqrt((innerWidth * innerHeight) / (DESIGN_WIDTH * DESIGN_HEIGHT)) * (phone ? PHONE_SCALE : 1);
+    const s = Math.min(Math.max(Math.min(byArea, innerWidth / (phone ? 420 : 520)), 0.42), 1.25);
     root.style.setProperty("--s", String(s));
     root.classList.add("live");
 

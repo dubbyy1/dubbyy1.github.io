@@ -135,6 +135,13 @@ const tube = { x: START, y: mid - BAR.tube, width: SPAN, height: 2 * BAR.tube, r
                 };
                 bar.setAttribute("aria-valuenow", String(got));
 
+                // Poking the triangle makes it shake (styled under Motion).
+                const knob = bar.querySelector(".knob");
+                knob.addEventListener("click", () => {
+                    knob.classList.remove("landed");
+                    replay(knob, "boop");
+                });
+
                 // On arriving, the triangle sweeps from the start up to the count, lighting the bar as it goes.
                 // Fast out of the start and easing into place (ease-out-quint), a bit longer the further it goes.
                 // It waits for a sideways page slide to finish first. Animations off or reduced: straight there.
@@ -242,8 +249,15 @@ const tube = { x: START, y: mid - BAR.tube, width: SPAN, height: 2 * BAR.tube, r
         width: calc(100 * var(--b));
         height: auto;
         translate: -50% -50%;
-        pointer-events: none;
+        /* It can be poked (see Motion below). */
+        cursor: pointer;
         user-select: none;
+        -webkit-tap-highlight-color: transparent;
+        /* What it leans, squashes and shakes about: a little below its middle. */
+        transform-origin: 50% 55%;
+        transition:
+            scale 150ms ease,
+            rotate 150ms ease;
     }
     /* "3 / 5" in a pill just past the right end of the bar, like the settings slider's level. It hangs off the
        side, so the bar itself stays in the middle of the page. */
@@ -263,12 +277,12 @@ const tube = { x: START, y: mid - BAR.tube, width: SPAN, height: 2 * BAR.tube, r
            browsers round borders down to whole pixels, which left this one looking thinner than the bar's. */
         box-shadow: inset 0 0 0 calc(var(--line) * var(--b)) var(--brown);
         border-radius: calc(10 * var(--u));
-        background: var(--orange-mid);
+        background: var(--orange);
         font-family: "Fredoka Variable", var(--font-body);
         font-weight: 600;
         font-size: calc(22 * var(--u));
         line-height: 1.2;
-        color: #fff;
+        color: var(--bg);
         /* pre: keeps the spaces either side of the "/" next to the number's own span. */
         white-space: pre;
         pointer-events: none;
@@ -363,13 +377,44 @@ const tube = { x: START, y: mid - BAR.tube, width: SPAN, height: 2 * BAR.tube, r
 
     /* The triangle and the count land at the end of the sweep with a quick squash, like the settings knob. */
     .knob.landed {
-        transform-origin: 50% 70%;
         animation: knob-land 220ms var(--ease);
     }
 
     @keyframes knob-land {
         from {
             scale: 1.12 0.86;
+        }
+    }
+
+    /* Poking the triangle: pointed at, it grows a little and leans back; pressed, it squashes down; let go,
+       it gives a shake like the padlocks' rattle. */
+    @media (hover: hover) and (pointer: fine) {
+        .knob:hover {
+            scale: 1.08;
+            rotate: -6deg;
+        }
+    }
+
+    .knob:active {
+        scale: 1.06 0.9;
+        rotate: 0deg;
+    }
+
+    /* The padlocks' rattle, on transform so it adds to the hover lean (which uses rotate) instead of
+       replacing it. */
+    .knob.boop {
+        animation: knob-shake 320ms ease;
+    }
+
+    @keyframes knob-shake {
+        20% {
+            transform: rotate(-7deg);
+        }
+        45% {
+            transform: rotate(6deg);
+        }
+        70% {
+            transform: rotate(-3deg);
         }
     }
 
@@ -426,6 +471,7 @@ const tube = { x: START, y: mid - BAR.tube, width: SPAN, height: 2 * BAR.tube, r
 
     :global(html[data-motion]) .bar .ring.pop,
     :global(html[data-motion]) .knob.landed,
+    :global(html[data-motion]) .knob.boop,
     :global(html[data-motion]) .count.landed,
     :global(html[data-motion]) .achievement {
         animation: none;
@@ -434,6 +480,7 @@ const tube = { x: START, y: mid - BAR.tube, width: SPAN, height: 2 * BAR.tube, r
     @media (prefers-reduced-motion: reduce) {
         .bar .ring.pop,
         .knob.landed,
+        .knob.boop,
         .count.landed,
         .achievement {
             animation: none;
@@ -465,6 +512,32 @@ const tube = { x: START, y: mid - BAR.tube, width: SPAN, height: 2 * BAR.tube, r
         /* Capped so the long word still fits across. */
         h1 {
             font-size: min(calc(96 * var(--u)), 14vw);
+        }
+    }
+
+    /* Phones on their side: short and wide, so everything shrinks to the screen's height as well as its width
+       (the bar and the count beside it are 860 wide; 560 is roughly the heading and bar's height plus a row). */
+    @media (max-height: 500px) and (orientation: landscape) {
+        main {
+            /* lvh: the screen's height with the address bar hidden, which doesn't change as you scroll and the
+               bar slides away (dvh does, so the page would jump in size). */
+            --u: min(calc(1.25 * var(--px)), (100vw - 32px) / 860, 100lvh / 560);
+            padding-top: 64px;
+        }
+    }
+
+    /* Phones, either way up: the whole page scrolls, not just the list, so there's more room to read. */
+    @media (max-width: 600px), (max-height: 500px) and (orientation: landscape) {
+        main {
+            height: auto;
+            min-height: 100dvh;
+            display: grid;
+            grid-template-rows: auto auto auto;
+        }
+
+        .list {
+            overflow: visible;
+            mask-image: none;
         }
     }
 </style>

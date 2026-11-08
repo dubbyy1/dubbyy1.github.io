@@ -330,6 +330,15 @@ const arrow =
         border-radius: 16px;
     }
 
+    /* Phones: smaller pins, so they cover less of the small map. Taps still pick the nearest one. */
+    @media (max-width: 600px) {
+        .pin {
+            width: 8px;
+            height: 8px;
+            border-width: 1.5px;
+        }
+    }
+
     @media (prefers-reduced-motion: reduce) {
         .pin,
         .step {

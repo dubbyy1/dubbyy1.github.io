@@ -678,14 +678,23 @@ const ticks = [
     /* Phones: the slider goes under its name, and everything shrinks until it fits across the screen. */
     @media (max-width: 600px) {
         main {
-            /* Leaves room either side for half the knob, which sticks out past the track's ends. */
-            --u: min(1px, (100vw - 32px) / 492);
+            /* The same scale as /achievements and /now on phones. */
+            --u: min(1px, (100vw - 32px) / 560);
             padding-inline: 16px;
         }
 
-        /* Room for the level's pill between the name and the slider. */
+        /* The slider always goes under its name, close, with just room for the level's pill (which sits lower
+           here than on computers). */
+        .row:first-child {
+            flex-direction: column;
+        }
+
         .slider {
-            margin-top: calc(72 * var(--u));
+            margin-top: calc(30 * var(--u));
+        }
+
+        .level {
+            bottom: calc(100% + 12 * var(--u));
         }
     }
 </style>

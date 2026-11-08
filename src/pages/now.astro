@@ -1,0 +1,160 @@
+---
+// Now: what I'm up to at the moment. The heading is when it was last updated; under it, one picture and
+// one paragraph. All of it comes from src/content/now/now.md.
+import "@fontsource-variable/fredoka/wght.css";
+import { Image } from "astro:assets";
+import { getEntry, render } from "astro:content";
+import Base from "../layouts/Base.astro";
+import SectionHeader from "../components/SectionHeader.astro";
+
+const entry = (await getEntry("now", "now"))!;
+const { Content } = await render(entry);
+
+// "2026-11-07 21:45" → "7 Nov 2026, 21:45", the same way /achievements writes when something was unlocked.
+// Taken straight from the text, so it never shifts with the timezone the site is built in.
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const [date, time] = entry.data.updated.split(" ");
+const [year, month, day] = date.split("-").map(Number);
+const heading = `${day} ${MONTHS[month - 1]} ${year}, ${time}`;
+---
+
+<Base title="now" description="What I'm up to right now.">
+    <SectionHeader page="now" fixed={false} />
+    <main>
+        <h1><span class="visually-hidden">Now, updated </span><time datetime={`${date}T${time}`}>{heading}</time></h1>
+        <div class="body">
+            <Image class="picture" src={entry.data.image} alt={entry.data.alt} width={560} />
+            <div class="text">
+                <Content />
+            </div>
+        </div>
+    </main>
+</Base>
+
+<style>
+    /* Sized in --u like /settings and /achievements: one pixel of the 1280-wide design. */
+    main {
+        --u: calc(1.25 * var(--px));
+        --brown: #613305;
+        --ease: cubic-bezier(0.23, 1, 0.32, 1); /* ease-out-quint */
+        display: grid;
+        justify-items: center;
+        gap: calc(32 * var(--u));
+        /* The heading sits where the other pages' headings do. */
+        padding: calc(66 * var(--u)) 16px 64px;
+    }
+
+    /* Like the /settings and /achievements headings, with the date and time in place of a word. */
+    h1 {
+        margin: 0;
+        font-family: "Fredoka Variable", var(--font-body);
+        font-weight: 600;
+        font-size: calc(96 * var(--u));
+        line-height: 1;
+        color: var(--orange);
+        text-align: center;
+    }
+
+    /* The picture on the left, the paragraph beside it, lined up at the top. */
+    .body {
+        display: flex;
+        align-items: flex-start;
+        gap: calc(32 * var(--u));
+        width: min(calc(860 * var(--u)), 100%);
+    }
+
+    /* Flat, with the bar's brown outline and rounded corners. */
+    .picture {
+        flex: none;
+        display: block;
+        width: calc(380 * var(--u));
+        height: auto;
+        border: calc(4 * var(--u)) solid var(--brown);
+        border-radius: calc(20 * var(--u));
+    }
+
+    /* The paragraph, in the same Nunito as the achievement descriptions. */
+    .text {
+        flex: 1;
+        min-width: 0;
+        font-weight: 600;
+        font-size: calc(24 * var(--u));
+        line-height: 1.45;
+        color: var(--brown);
+    }
+
+    .text :global(p) {
+        margin: 0;
+    }
+
+    /* A little space between paragraphs, when there's more than one. */
+    .text :global(p + p) {
+        margin-top: 0.75em;
+    }
+
+    .text :global(a) {
+        color: var(--orange-dark);
+    }
+
+    /* The picture and paragraph rise in after the heading as the page opens. */
+    .picture,
+    .text {
+        animation: now-in 360ms var(--ease) both;
+    }
+
+    .picture {
+        animation-delay: 80ms;
+    }
+
+    .text {
+        animation-delay: 140ms;
+    }
+
+    @keyframes now-in {
+        from {
+            opacity: 0;
+            translate: 0 calc(14 * var(--u));
+        }
+    }
+
+    :global(html[data-motion]) .picture,
+    :global(html[data-motion]) .text {
+        animation: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .picture,
+        .text {
+            animation: none;
+        }
+    }
+
+    /* Phones: below the small "dubbyy /now", with the heading capped so the date fits across, and the text
+       no smaller than is comfortable to read. */
+    @media (max-width: 600px) {
+        main {
+            --u: min(1px, (100vw - 32px) / 560);
+            padding-top: 72px;
+            gap: 24px;
+        }
+
+        h1 {
+            font-size: min(calc(96 * var(--u)), 10vw);
+        }
+
+        /* Too narrow for side by side: the picture goes above the paragraph, still small. */
+        .body {
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .picture {
+            width: min(300px, 80vw);
+        }
+
+        .text {
+            font-size: 17px;
+        }
+    }
+</style>

@@ -91,4 +91,18 @@ const about = defineCollection({
     }),
 });
 
-export const collections = { projects, about };
+// The /now page: what I'm up to at the moment, in src/content/now/now.md. One picture and one paragraph.
+const now = defineCollection({
+    loader: glob({ pattern: "*.md", base: "./src/content/now" }),
+    schema: ({ image }) =>
+        z.object({
+            // When it was last updated, in my own time, as "2026-11-07 21:45". It's the page's heading.
+            // Written out like this (in quotes) so it shows exactly as written, whatever timezone the site is built in.
+            updated: z.string().regex(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/, 'Write it as "YYYY-MM-DD HH:MM", in quotes'),
+            image: image(),
+            // What's in the picture, for screen readers.
+            alt: z.string(),
+        }),
+});
+
+export const collections = { projects, about, now };

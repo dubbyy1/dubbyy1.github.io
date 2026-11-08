@@ -324,12 +324,14 @@ const taglines = taglinesFile
         transform-origin: left center;
     }
 
-    /* Over the right arrow: grows from its bottom right. */
+    /* Beside the right arrow, mirroring the left one: the same gap from the arrow's middle, level with it.
+       Grows from its middle right. */
     .right {
-        right: calc(var(--arrow-inset) + var(--arrow-size) * (0.5 - 0.795));
-        top: calc(var(--arrow-top) - var(--arrow-size) * 1.204);
+        right: calc(var(--arrow-inset) + var(--arrow-size) * (0.5 + 0.519));
+        top: var(--arrow-top);
+        translate: 0 -50%;
         width: calc(var(--arrow-size) * 1.612);
-        transform-origin: right bottom;
+        transform-origin: right center;
     }
 
     /* 52 in from the top and right on the 3840-wide mockup. Grows from the corner. Its 330px file at the site's
@@ -341,37 +343,116 @@ const taglines = taglinesFile
         transform-origin: right top;
     }
 
-    /* Narrower screens: the logo fills the space beside the left arrow, so its label goes underneath. */
+    /* Phones on their side: too short for the usual sizes, so everything on the page (hero, drawings, arrows)
+       shrinks to the screen's height. --px becomes one pixel of a screen --landscape-height tall: lower it for
+       bigger, raise it for smaller. At 650 the logo, tagline and icons fit, but the top and bottom of the
+       centre drawing's secrets go off the screen (it's 758 logo units tall; it all fits from about 1000). */
+    @media (max-height: 500px) and (orientation: landscape) {
+        .home {
+            --landscape-height: 650;
+            --px: calc(100dvh / var(--landscape-height));
+            --arrow-size: max(44px, calc(92 * var(--px)));
+            --arrow-inset: calc(45 * var(--px));
+        }
+
+        /* The arrows stay big enough to tap, so the labels beside them are sized from their files instead
+           (half a --px per file pixel once grown by --hero-scale, like the corner one), to match the rest. */
+        .left {
+            width: calc(269 * 0.5 / 1.2 * var(--px));
+        }
+
+        .right {
+            width: calc(371 * 0.5 / 1.2 * var(--px));
+        }
+
+        .drawings-toggle .icon {
+            width: 20px;
+            height: 20px;
+        }
+    }
+
+    /* Narrower screens: the logo fills the space beside the arrows, so the left label goes underneath its
+       arrow and the right one over its arrow (growing from its bottom right). */
     @media (max-width: 1130px) {
         .left {
             left: calc(var(--arrow-inset) + 4px);
             top: calc(var(--arrow-top) + var(--arrow-size) * 0.6);
             transform-origin: left top;
         }
+
+        .right {
+            right: calc(var(--arrow-inset) + var(--arrow-size) * (0.5 - 0.795));
+            top: calc(var(--arrow-top) - var(--arrow-size) * 1.204);
+            translate: none;
+            transform-origin: right bottom;
+        }
     }
 
-    /* Phones: the arrows hug the edges, so the labels sit under / over them instead of beside. The hero just
-       fills the width there, so they stay their own size. */
+    /* Phones: the arrows hug the edges, so the labels sit under / over them instead of beside. Every drawing
+       is shown at the same scale as the centre one, which fills the hero: --draw is the size of one pixel of
+       a drawing's file (the centre file is 1721 wide and spans 690.9 of the hero's 599 units; the hero is the
+       screen less main's side padding). Each width below is its file's width times --draw. */
     @media (max-width: 600px) {
+        .home {
+            --draw: calc((100vw - 2 * max(56px, 12vw)) * 690.9 / 599 / 1721);
+        }
+
         .doodles .doodle {
             scale: none;
         }
 
         .corner {
-            width: 74px;
+            width: calc(330 * var(--draw));
         }
 
         .left {
             left: 6px;
             top: calc(var(--arrow-top) + 50px);
-            width: 62px;
+            width: calc(269 * var(--draw));
         }
 
         .right {
             right: 6px;
             top: auto;
             bottom: calc(100% - var(--arrow-top) + 26px);
-            width: 82px;
+            width: calc(371 * var(--draw));
+        }
+
+        /* Smaller than on computers, with a bigger tap area around it. */
+        .drawings-toggle {
+            padding: 10px;
+            left: 2px;
+            top: 2px;
+        }
+
+        .drawings-toggle .icon {
+            width: 20px;
+            height: 20px;
+        }
+    }
+
+    /* Phones on their side, again (after the narrower-screen rules, so it wins over them): the labels sit
+       beside their arrows, "The Board" to the right of the left one and "Settings" to the left of the right
+       one. The hero gets enough padding either side to stay clear of them: the arrow, the gap from its middle
+       to its label, the wider label (Settings, 371 file pixels at half a --px each) and a little room. */
+    @media (max-height: 500px) and (orientation: landscape) {
+        main {
+            padding-inline: calc(var(--arrow-inset) + var(--arrow-size) * 1.019 + 371 * 0.5 * var(--px) + 8px);
+        }
+
+        .left {
+            left: calc(var(--arrow-inset) + var(--arrow-size) * (0.5 + 0.519));
+            top: var(--arrow-top);
+            translate: 0 -50%;
+            transform-origin: left center;
+        }
+
+        .right {
+            right: calc(var(--arrow-inset) + var(--arrow-size) * (0.5 + 0.519));
+            top: var(--arrow-top);
+            bottom: auto;
+            translate: 0 -50%;
+            transform-origin: right center;
         }
     }
 </style>

@@ -1,14 +1,14 @@
-pronounced */ˈduːbiː/* | 3
-pronounced *doo-bee* | 3
-pronounced *dubbyy* | 3
+pronounced */ˈduːbiː/* | 5
+pronounced *doo-bee* | 5
+pronounced *dubbyy* | 5
 pronounced *dúbí* | 3
-idiot at rest | 3
+idiot at rest | 4
 jack of no trades | 3
 oh, this and that, nothing in particular
 how did you get here?
 behind you | 2
 hey, you. you're finally awake!
-disgusting. | 2
+disgusting. | 4
 head in the clouds
 i don't want to say goodbye to you | 2
 so i'll just say good night to you
@@ -20,24 +20,24 @@ somebody should have told me it would be like this
 loves us with some exceptions for reasons unknown
 what do you think of that L?
 the world is yours | 3
-what a time to be alive | 3
+what a time to be alive | 6
 photographing dreams | 2
 a tornado flew around my room before you came
 that's the beauty of it, it doesn't do anything!
-perhaps our fears are coming true
+perhaps our fears are coming true | 2
 have you tried being happy?
 i don't want to be an engineer | 2
 surely we'll live to see the day
-sweet as candy soft as a kiss
+sweet as candy soft as a kiss | 0.5
 can't be sober and great
-work in progress | 4
+work in progress | 6
 no cost too great | 2
 big as the what?
 sing about me | 2
 formerly nozz90 | 3
-new and improved! | 3
-est. 2010 | 3
-aspiring billionaire | 3
+new and improved! | 6
+est. 2010 | 6
+aspiring billionaire | 5
 the human | 2
 partially functional | 2
 if you don't aim too high then you aim too low
@@ -45,8 +45,9 @@ don't look down
 misery is boring | 2
 as seen on tv!
 no such thing as a life that's better than yours
-print('hello world!')
+print("hello world!")
 god in chains
+sturluson | 0
 built with astro!
 .com | 3
 deployed with vercel!
@@ -67,4 +68,4 @@ smile :> | 2
 looking for reveeeeenge
 it's funny how heaven and hell are the same
 the tears of the world are a constant quantity
-the password is 'sturluson' | 0
+sometimes i wish i could fly away

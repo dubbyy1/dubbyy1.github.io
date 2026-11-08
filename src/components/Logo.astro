@@ -1,7 +1,7 @@
 ---
 // The "dubbyy" wordmark. Each letter (g.letter-N) bobs on its own and jumps when hovered.
 // With links on (the home page), the d goes to the projects page, the u to the about page (/me),
-// the first y to the achievements, and the last, darker y drops and links to /y (y.dubbyy.com). Turn them off when the whole logo is itself a link.
+// the second b to /now, the first y to the achievements, and the last, darker y drops and links to /y (y.dubbyy.com). Turn them off when the whole logo is itself a link.
 // The invisible .hit rect stays still so the hover doesn't flicker as the letter moves.
 // animated={false} turns off the idle bobbing (hover jumps still work), e.g. for the small corner logo.
 interface Props {
@@ -11,6 +11,9 @@ interface Props {
 }
 const { class: className, links = true, animated = true } = Astro.props;
 const Link = links ? "a" : "g";
+// The last y's outline, shared by the y and its afterimage.
+const Y_PATH =
+    "M588.726 96.9359C595.575 99.9543 599 103.611 599 107.907C599 109.996 598.536 111.97 597.607 113.827C596.678 115.685 596.214 116.671 596.214 116.787L550.59 218.831C549.661 221.037 548.849 222.72 548.152 223.881C547.572 225.042 546.585 226.145 545.192 227.19C543.799 228.235 542.057 228.757 539.968 228.757C537.878 228.757 534.802 227.886 530.739 226.145C523.889 223.127 520.465 219.528 520.465 215.349C520.465 212.562 526.037 199.27 537.182 175.471L502.528 117.136C500.207 113.305 499.046 110.461 499.046 108.603C499.046 104.888 502.18 101.173 508.449 97.4583C512.396 95.1365 515.473 93.9756 517.678 93.9756C519.884 93.9756 521.683 94.44 523.077 95.3687C524.47 96.2974 525.456 97.2842 526.037 98.329C526.733 99.2577 529.926 104.656 535.614 114.524C541.419 124.275 546.933 133.388 552.157 141.863C552.738 140.006 555.872 132.866 561.561 120.444C567.249 107.907 570.268 101.231 570.616 100.419C571.08 99.606 571.777 98.6192 572.705 97.4583C574.215 95.4848 576.304 94.498 578.974 94.498C581.761 94.498 585.011 95.3106 588.726 96.9359Z";
 ---
 
 <svg
@@ -36,10 +39,12 @@ const Link = links ? "a" : "g";
         <rect class="hit" x="200.5" y="-10" width="103" height="155" />
         <path class="shape" fill="var(--orange)" d="M255.516 43.389C265.848 43.389 275.31 47.9746 283.9 57.1458C292.607 66.3169 296.961 76.9973 296.961 89.1869C296.961 101.26 292.665 111.883 284.074 121.054C275.484 130.109 266.254 134.636 256.387 134.636C246.519 134.636 239.496 131.85 235.316 126.278C234.388 131.966 229.396 134.811 220.341 134.811C213.027 134.811 208.557 133.243 206.932 130.109C206.119 128.368 205.597 126.858 205.365 125.581C205.249 124.188 205.191 122.157 205.191 119.487V15.5272C205.191 12.8571 205.249 10.8835 205.365 9.60654C205.597 8.21345 206.119 6.70426 206.932 5.07899C208.557 1.94454 213.085 0.37731 220.515 0.37731C227.828 0.37731 232.24 1.94454 233.749 5.07899C234.678 6.82036 235.2 8.38759 235.316 9.78068C235.548 11.0577 235.665 13.0312 235.665 15.7013V51.9217C240.308 46.2332 246.925 43.389 255.516 43.389ZM240.192 99.635C243.094 102.769 246.693 104.337 250.989 104.337C255.284 104.337 258.941 102.769 261.959 99.635C264.977 96.5006 266.487 93.0179 266.487 89.1869C266.487 85.3559 265.094 81.8731 262.307 78.7387C259.521 75.4881 255.806 73.8629 251.163 73.8629C246.519 73.8629 242.804 75.4881 240.018 78.7387C237.348 81.9892 236.013 85.53 236.013 89.361C236.013 93.0759 237.406 96.5006 240.192 99.635Z" />
     </g>
+    <Link {...links && { href: "/now", "aria-label": "now" }}>
     <g class="letter letter-4">
         <rect class="hit" x="303.5" y="-10" width="101" height="155" />
         <path class="shape" fill="var(--orange)" d="M357.821 43.389C368.153 43.389 377.615 47.9746 386.205 57.1458C394.912 66.3169 399.266 76.9973 399.266 89.1869C399.266 101.26 394.97 111.883 386.38 121.054C377.789 130.109 368.56 134.636 358.692 134.636C348.824 134.636 341.801 131.85 337.621 126.278C336.693 131.966 331.701 134.811 322.646 134.811C315.332 134.811 310.862 133.243 309.237 130.109C308.424 128.368 307.902 126.858 307.67 125.581C307.554 124.188 307.496 122.157 307.496 119.487V15.5272C307.496 12.8571 307.554 10.8835 307.67 9.60654C307.902 8.21345 308.424 6.70426 309.237 5.07899C310.862 1.94454 315.39 0.37731 322.82 0.37731C330.133 0.37731 334.545 1.94454 336.054 5.07899C336.983 6.82036 337.505 8.38759 337.621 9.78068C337.854 11.0577 337.97 13.0312 337.97 15.7013V51.9217C342.613 46.2332 349.23 43.389 357.821 43.389ZM342.497 99.635C345.399 102.769 348.998 104.337 353.294 104.337C357.589 104.337 361.246 102.769 364.264 99.635C367.283 96.5006 368.792 93.0179 368.792 89.1869C368.792 85.3559 367.399 81.8731 364.612 78.7387C361.826 75.4881 358.111 73.8629 353.468 73.8629C348.824 73.8629 345.109 75.4881 342.323 78.7387C339.653 81.9892 338.318 85.53 338.318 89.361C338.318 93.0759 339.711 96.5006 342.497 99.635Z" />
     </g>
+    </Link>
     <Link {...links && { href: "/achievements", "aria-label": "achievements" }}>
     <g class="letter letter-5">
         <rect class="hit" x="404.5" y="-10" width="97" height="195" />
@@ -52,7 +57,9 @@ const Link = links ? "a" : "g";
     <Link {...links && { class: "secret", href: "/y", "aria-label": "y", "data-astro-reload": true, "data-astro-prefetch": "false" }}>
     <g class="letter letter-6">
         <rect class="hit" x="501.5" y="85" width="101.5" height="150" />
-        <path class="shape" fill="var(--orange-dark)" d="M588.726 96.9359C595.575 99.9543 599 103.611 599 107.907C599 109.996 598.536 111.97 597.607 113.827C596.678 115.685 596.214 116.671 596.214 116.787L550.59 218.831C549.661 221.037 548.849 222.72 548.152 223.881C547.572 225.042 546.585 226.145 545.192 227.19C543.799 228.235 542.057 228.757 539.968 228.757C537.878 228.757 534.802 227.886 530.739 226.145C523.889 223.127 520.465 219.528 520.465 215.349C520.465 212.562 526.037 199.27 537.182 175.471L502.528 117.136C500.207 113.305 499.046 110.461 499.046 108.603C499.046 104.888 502.18 101.173 508.449 97.4583C512.396 95.1365 515.473 93.9756 517.678 93.9756C519.884 93.9756 521.683 94.44 523.077 95.3687C524.47 96.2974 525.456 97.2842 526.037 98.329C526.733 99.2577 529.926 104.656 535.614 114.524C541.419 124.275 546.933 133.388 552.157 141.863C552.738 140.006 555.872 132.866 561.561 120.444C567.249 107.907 570.268 101.231 570.616 100.419C571.08 99.606 571.777 98.6192 572.705 97.4583C574.215 95.4848 576.304 94.498 578.974 94.498C581.761 94.498 585.011 95.3106 588.726 96.9359Z" />
+        {/* The trail, only on the full logo (not the small, still one in the corner of inner pages). */}
+        {animated && [2, 1].map((n) => <path class="ghost" style={`--n: ${n}`} d={Y_PATH} aria-hidden="true" />)}
+        <path class="shape" fill="var(--orange-dark)" d={Y_PATH} />
     </g>
     </Link>
 </svg>
@@ -86,6 +93,34 @@ const Link = links ? "a" : "g";
     .letter-6:hover .shape {
         transform: translateY(27px);
         fill: #994d00;
+    }
+
+    /* The last y's afterimage: two fading copies right behind it, hidden while it's still. They make the same
+       moves a beat later (the farther one later still), so while the y moves they lag behind it as a trail.
+       Opacity 40% and 20%, nearest first.
+       --lag: the beat between copies, in seconds (just the number). */
+    .ghost {
+        --lag: 0.5;
+        --beat: calc(var(--n) * var(--lag) * 1s);
+        fill: var(--orange-dark);
+        opacity: calc(0.6 - var(--n) * 0.2);
+        pointer-events: none;
+        animation: wave-y 3s ease-in-out infinite backwards;
+        animation-delay: calc(0.75s + var(--beat));
+        /* Back up with the y, hidden, and back on the moment it's back at the top (1s, the y's own return). */
+        transition:
+            transform 1s,
+            opacity 0s 1s;
+    }
+
+    /* A little slower than the y as well as later, so the trail stretches out further behind it. They fade out
+       quickly as soon as the y drops, so they never hang about on their own where the y used to be. */
+    .letter-6:hover .ghost {
+        transform: translateY(27px);
+        opacity: 0;
+        transition:
+            transform calc(0.25s + var(--n) * 0.05s) var(--beat),
+            opacity 250ms ease-out;
     }
 
     .letter-2 .shape { animation-delay: 0.15s; }
